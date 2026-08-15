@@ -36,7 +36,7 @@ import org.jetbrains.compose.resources.painterResource
 @Composable
 fun MainScreen() {
     val engine = remember {
-        CalculatorEngine(taxRate = 18.0)
+        CalculatorEngine()
     }
 
     val scrollState = rememberScrollState()

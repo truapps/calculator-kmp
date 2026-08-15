@@ -1,35 +1,49 @@
 package com.truapps.calculator.app.main.engine
 
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
+import kotlin.math.pow
+import kotlin.math.sqrt
 
-class CalculatorEngine(
-    val taxRate: Double = 18.0
-) {
+class CalculatorEngine {
 
-    private val _display: MutableState<String> =
-        mutableStateOf("0")
-
-    private val _expression: MutableState<String> =
-        mutableStateOf("")
-
-    private val _justCalculated: MutableState<Boolean> =
-        mutableStateOf(false)
-
-    private val _history: SnapshotStateList<String> =
-        mutableStateListOf()
-
+    private val _display = mutableStateOf("0")
     val display: State<String> = _display
 
-    val expression: State<String> = _expression
+    /**
+     * Internal expression used by ExpressionEvaluator.
+     *
+     * Example:
+     * 100TAX+18
+     */
+    private val _expression = mutableStateOf("")
 
+    /**
+     * Pretty expression shown in UI.
+     *
+     * Example:
+     * 100 @ TAX+18%
+     */
+    private val _displayExpression = mutableStateOf("")
+    val expression: State<String> = _displayExpression
+
+    private val _justCalculated = mutableStateOf(false)
     val justCalculated: State<Boolean> = _justCalculated
 
+    private val _history = mutableStateListOf<String>()
     val history: List<String> = _history
 
+    /**
+     * True while entering the tax percentage.
+     *
+     * Example:
+     *
+     * 100 @ TAX+
+     *             ↑
+     *        enteringTaxRate
+     */
+    private var enteringTaxRate = false
 
     fun press(key: CalculatorKey) {
 
@@ -59,16 +73,20 @@ class CalculatorEngine(
                 inputOperator("÷")
             }
 
+            CalculatorKey.Percentage -> {
+                percentage()
+            }
+
             CalculatorKey.SqRoot -> {
-                inputSquareRoot()
+                squareRoot()
             }
 
             CalculatorKey.Square -> {
-                inputPower(2)
+                square()
             }
 
             CalculatorKey.Cube -> {
-                inputPower(3)
+                cube()
             }
 
             CalculatorKey.OpenParenthesis -> {
@@ -83,16 +101,12 @@ class CalculatorEngine(
                 toggleSign()
             }
 
-            CalculatorKey.Percentage -> {
-                percentage()
-            }
-
             CalculatorKey.TaxPlus -> {
-                taxPlus()
+                startTax(plus = true)
             }
 
             CalculatorKey.TaxMinus -> {
-                taxMinus()
+                startTax(plus = false)
             }
 
             CalculatorKey.Backspace -> {
@@ -107,321 +121,537 @@ class CalculatorEngine(
                 calculate()
             }
 
-            CalculatorKey.Left -> {
-                // Cursor functionality can be added later.
-            }
-
-            CalculatorKey.Right -> {
-                // Cursor functionality can be added later.
-            }
+            CalculatorKey.Left -> Unit
+            CalculatorKey.Right -> Unit
         }
     }
 
+    // ---------------------------------------------------------
+    // DIGIT
+    // ---------------------------------------------------------
 
     private fun inputDigit(digit: Int) {
 
-        require(digit in 0..9)
-
-        startNewExpressionIfNeeded()
-
-        val expression = _expression.value
-
-        /*
-         * If the expression currently ends with:
-         *
-         * √(
-         *
-         * we simply append the number.
-         */
-
-        if (expression.isEmpty()) {
-            _expression.value = digit.toString()
-        } else {
-            _expression.value += digit
+        if (_justCalculated.value) {
+            clearCurrent()
+            _justCalculated.value = false
         }
 
-        updateDisplay()
-    }
+        if (enteringTaxRate) {
 
+            /*
+             * Internal:
+             *
+             * 100TAX+
+             *
+             * 1 -> 100TAX+1
+             * 8 -> 100TAX+18
+             */
+            _expression.value += digit
 
-    private fun inputDecimal() {
+            /*
+             * Display:
+             *
+             * 100 @ TAX+
+             *
+             * 1 -> 100 @ TAX+1%
+             * 8 -> 100 @ TAX+18%
+             */
+            if (_display.value == "0") {
+                _display.value = digit.toString()
+            } else {
+                _display.value += digit
+            }
 
-        startNewExpressionIfNeeded()
+            updateTaxDisplay()
 
-        val currentNumber = getCurrentNumber()
-
-        if (currentNumber.contains(".")) {
             return
         }
 
-        if (
-            _expression.value.isEmpty() ||
-            _expression.value.last().isOperator() ||
-            _expression.value.last() == '('
-        ) {
-            _expression.value += "0."
+        if (_display.value == "0") {
+            _display.value = digit.toString()
         } else {
-            _expression.value += "."
+            _display.value += digit
         }
 
-        updateDisplay()
+        syncDisplayToExpression()
     }
 
+    // ---------------------------------------------------------
+    // DECIMAL
+    // ---------------------------------------------------------
+
+    private fun inputDecimal() {
+
+        if (_justCalculated.value) {
+            clearCurrent()
+            _justCalculated.value = false
+        }
+
+        if (_display.value.contains(".")) {
+            return
+        }
+
+        if (enteringTaxRate) {
+
+            /*
+             * Internal:
+             *
+             * 100TAX+18.
+             */
+            _expression.value += "."
+
+            _display.value += "."
+
+            updateTaxDisplay()
+
+            return
+        }
+
+        if (_display.value == "0") {
+            _display.value = "0."
+        } else {
+            _display.value += "."
+        }
+
+        syncDisplayToExpression()
+    }
+
+    // ---------------------------------------------------------
+    // NORMAL OPERATORS
+    // ---------------------------------------------------------
 
     private fun inputOperator(operator: String) {
 
+        /*
+         * TAX rate must be completed first.
+         */
+        if (enteringTaxRate) {
+
+            if (_display.value == "0") {
+                return
+            }
+
+            enteringTaxRate = false
+        }
+
+        if (_expression.value.isEmpty()) {
+            _expression.value = _display.value
+            _displayExpression.value = _display.value
+        }
+
+        val last = _expression.value.lastOrNull()
+
+        if (last?.isOperator() == true) {
+
+            _expression.value =
+                _expression.value.dropLast(1) + operator
+
+            _displayExpression.value =
+                _displayExpression.value.dropLast(1) + operator
+
+            _display.value = "0"
+
+            return
+        }
+
+        /*
+         * Don't allow:
+         *
+         * 20%+
+         *
+         * without a second operand.
+         */
+        if (last == '%') {
+            return
+        }
+
+        _expression.value += operator
+        _displayExpression.value += operator
+
+        _display.value = "0"
+        _justCalculated.value = false
+    }
+
+    // ---------------------------------------------------------
+    // PERCENTAGE
+    // ---------------------------------------------------------
+
+    /**
+     * Binary percentage.
+     *
+     * 20 % 150
+     *
+     * = 30
+     *
+     * NOT:
+     *
+     * 20 / 100
+     */
+    private fun percentage() {
+
+        if (enteringTaxRate) {
+            return
+        }
+
+        /*
+         * Important:
+         *
+         * 20 + 30 = 50
+         *
+         * then %
+         *
+         * should become:
+         *
+         * 50%
+         *
+         * and must NOT reset the expression.
+         */
         if (_justCalculated.value) {
             _justCalculated.value = false
         }
 
         if (_expression.value.isEmpty()) {
-
-            // Allow negative number at beginning.
-            if (operator == "-") {
-                _expression.value = "-"
-                updateDisplay()
-            }
-
-            return
+            _expression.value = _display.value
+            _displayExpression.value = _display.value
         }
 
-        val last = _expression.value.last()
-
-        if (last.isOperator()) {
-
-            _expression.value =
-                _expression.value.dropLast(1) + operator
-
-        } else if (last == '(') {
-
-            // Only '-' is allowed after '('.
-            if (operator == "-") {
-                _expression.value += operator
-            }
-
-        } else {
-
-            _expression.value += operator
-        }
-
-        updateDisplay()
-    }
-
-
-    private fun inputSquareRoot() {
-
-        startNewExpressionIfNeeded()
-
-        /*
-         * √ becomes:
-         *
-         * √(
-         *
-         * Example:
-         *
-         * 5 + √(25
-         */
-
-        if (canImplicitlyMultiply()) {
-            _expression.value += "×"
-        }
-
-        _expression.value += "√"
-
-        updateDisplay()
-    }
-
-
-    private fun inputPower(power: Int) {
-
-        if (_expression.value.isEmpty()) {
-            return
-        }
-
-        val last = _expression.value.last()
-
-        /*
-         * x² / x³
-         *
-         * 5²
-         * 2³
-         */
-
-        if (
-            last.isDigit() ||
-            last == ')' ||
-            last == '%'
-        ) {
-            _expression.value += "^$power"
-        }
-
-        updateDisplay()
-    }
-
-
-    private fun openParenthesis() {
-
-        startNewExpressionIfNeeded()
-
-        if (canImplicitlyMultiply()) {
-            _expression.value += "×"
-        }
-
-        _expression.value += "("
-
-        updateDisplay()
-    }
-
-
-    private fun closeParenthesis() {
-
-        val expression = _expression.value
-
-        val openCount = expression.count { it == '(' }
-        val closeCount = expression.count { it == ')' }
-
-        if (openCount <= closeCount) {
-            return
-        }
-
-        val last = expression.lastOrNull()
+        val last = _expression.value.lastOrNull()
 
         if (
             last == null ||
             last.isOperator() ||
+            last == '%' ||
             last == '('
         ) {
             return
         }
 
-        _expression.value += ")"
-
-        updateDisplay()
-    }
-
-
-    private fun toggleSign() {
-
-        if (_expression.value.isEmpty()) {
-            _expression.value = "-"
-            updateDisplay()
-            return
-        }
-
-        val number = getCurrentNumber()
-
-        if (number.isEmpty()) {
-            return
-        }
-
-        val startIndex =
-            _expression.value.length - number.length
-
-        if (startIndex > 0 &&
-            _expression.value[startIndex - 1] == '-'
-        ) {
-
-            val beforeMinus =
-                if (startIndex - 1 > 0) {
-                    _expression.value[startIndex - 2]
-                } else {
-                    null
-                }
-
-            if (
-                beforeMinus == null ||
-                beforeMinus.isOperator() ||
-                beforeMinus == '('
-            ) {
-                _expression.value =
-                    _expression.value.removeRange(
-                        startIndex - 1,
-                        startIndex
-                    )
-
-                updateDisplay()
-                return
-            }
-        }
-
-        _expression.value =
-            _expression.value.substring(
-                0,
-                startIndex
-            ) +
-                    "-" +
-                    _expression.value.substring(startIndex)
-
-        updateDisplay()
-    }
-
-
-    private fun percentage() {
-
-        if (_expression.value.isEmpty()) {
-            return
-        }
-
-        val number = getCurrentNumber()
-
-        if (number.isEmpty()) {
-            return
-        }
-
         _expression.value += "%"
+        _displayExpression.value += "%"
 
-        updateDisplay()
+        /*
+         * Next digits are the second operand.
+         *
+         * 20 % 150
+         */
+        _display.value = "0"
     }
 
+    // ---------------------------------------------------------
+    // TAX
+    // ---------------------------------------------------------
 
-    private fun taxPlus() {
+    /**
+     * TAX+
+     *
+     * User sees:
+     *
+     * 100 @ TAX+
+     *
+     * Then entering 18:
+     *
+     * 100 @ TAX+18%
+     *
+     * Internal:
+     *
+     * 100TAX+18
+     */
+    private fun startTax(plus: Boolean) {
 
-        if (_expression.value.isEmpty()) {
+        if (enteringTaxRate) {
             return
         }
 
-        val number = getCurrentNumber()
+        if (_expression.value.isEmpty()) {
+            _expression.value = _display.value
+            _displayExpression.value = _display.value
+        }
 
-        if (number.isEmpty()) {
+        val last = _expression.value.lastOrNull()
+
+        if (
+            last == null ||
+            last.isOperator() ||
+            last == '%' ||
+            last == '('
+        ) {
             return
         }
 
         /*
-         * 100 TAX+
-         *
-         * becomes
-         *
-         * 100 TAX+
+         * Internal evaluator expression.
          */
+        _expression.value += if (plus) {
+            "TAX+"
+        } else {
+            "TAX-"
+        }
 
-        _expression.value += "TAX+"
+        /*
+         * User-facing expression.
+         */
+        _displayExpression.value += if (plus) {
+            " @ TAX+"
+        } else {
+            " @ TAX-"
+        }
 
-        updateDisplay()
+        enteringTaxRate = true
+
+        /*
+         * Tax rate input starts from zero.
+         */
+        _display.value = "0"
     }
 
+    /**
+     * Updates:
+     *
+     * 100 @ TAX+
+     *
+     * into:
+     *
+     * 100 @ TAX+18%
+     */
+    private fun updateTaxDisplay() {
 
-    private fun taxMinus() {
+        /*
+         * Remove the previous rate.
+         */
+        val base = _displayExpression.value
+            .substringBeforeLast("TAX+")
+            .takeIf {
+                _displayExpression.value.contains("TAX+")
+            }
+            ?: _displayExpression.value
+                .substringBeforeLast("TAX-")
+                .takeIf {
+                    _displayExpression.value.contains("TAX-")
+                }
+
+        val isPlus =
+            _displayExpression.value.contains("TAX+")
+
+        val isMinus =
+            _displayExpression.value.contains("TAX-")
+
+        if (isPlus) {
+
+            val prefix =
+                _displayExpression.value.substringBefore("TAX+")
+
+            _displayExpression.value =
+                prefix + "TAX+" + _display.value + "%"
+
+        } else if (isMinus) {
+
+            val prefix =
+                _displayExpression.value.substringBefore("TAX-")
+
+            _displayExpression.value =
+                prefix + "TAX-" + _display.value + "%"
+
+        } else {
+
+            /*
+             * Fallback.
+             */
+            _displayExpression.value +=
+                _display.value + "%"
+        }
+    }
+
+    // ---------------------------------------------------------
+    // SQUARE ROOT
+    // ---------------------------------------------------------
+
+    private fun squareRoot() {
+
+        if (enteringTaxRate) {
+            return
+        }
+
+        val number =
+            currentNumber().toDoubleOrNull()
+                ?: return
+
+        if (number < 0) {
+            showError()
+            return
+        }
+
+        val result = sqrt(number)
+
+        replaceCurrentNumber(
+            "√$number"
+        )
+
+        _display.value =
+            formatNumber(result)
+
+        _justCalculated.value = false
+    }
+
+    // ---------------------------------------------------------
+    // SQUARE
+    // ---------------------------------------------------------
+
+    private fun square() {
+
+        if (enteringTaxRate) {
+            return
+        }
+
+        val number =
+            currentNumber().toDoubleOrNull()
+                ?: return
+
+        val result =
+            number * number
+
+        replaceCurrentNumber(
+            "$number²"
+        )
+
+        _display.value =
+            formatNumber(result)
+
+        _justCalculated.value = false
+    }
+
+    // ---------------------------------------------------------
+    // CUBE
+    // ---------------------------------------------------------
+
+    private fun cube() {
+
+        if (enteringTaxRate) {
+            return
+        }
+
+        val number =
+            currentNumber().toDoubleOrNull()
+                ?: return
+
+        val result =
+            number * number * number
+
+        replaceCurrentNumber(
+            "$number³"
+        )
+
+        _display.value =
+            formatNumber(result)
+
+        _justCalculated.value = false
+    }
+
+    // ---------------------------------------------------------
+    // PLUS / MINUS
+    // ---------------------------------------------------------
+
+    private fun toggleSign() {
+
+        if (enteringTaxRate) {
+            return
+        }
+
+        val number =
+            currentNumber().toDoubleOrNull()
+                ?: return
+
+        val result = -number
+        val formatted = formatNumber(result)
+
+        replaceCurrentNumber(formatted)
+
+        _display.value = formatted
+        _displayExpression.value =
+            prettyExpression(_expression.value)
+    }
+
+    // ---------------------------------------------------------
+    // PARENTHESES
+    // ---------------------------------------------------------
+
+    private fun openParenthesis() {
+
+        if (_justCalculated.value) {
+            clearCurrent()
+            _justCalculated.value = false
+        }
 
         if (_expression.value.isEmpty()) {
+
+            _expression.value = "("
+            _displayExpression.value = "("
+            _display.value = "0"
+
             return
         }
 
-        val number = getCurrentNumber()
+        val last =
+            _expression.value.lastOrNull()
 
-        if (number.isEmpty()) {
-            return
+        if (
+            last != null &&
+            (
+                    last.isDigit() ||
+                            last == ')' ||
+                            last == '²' ||
+                            last == '³'
+                    )
+        ) {
+
+            _expression.value += "×"
+            _displayExpression.value += "×"
         }
 
-        _expression.value += "TAX-"
+        _expression.value += "("
+        _displayExpression.value += "("
 
-        updateDisplay()
+        _display.value = "0"
     }
 
+    private fun closeParenthesis() {
+
+        val open =
+            _expression.value.count { it == '(' }
+
+        val close =
+            _expression.value.count { it == ')' }
+
+        if (open <= close) {
+            return
+        }
+
+        val last =
+            _expression.value.lastOrNull()
+
+        if (
+            last == null ||
+            last.isOperator() ||
+            last == '(' ||
+            last == '%'
+        ) {
+            return
+        }
+
+        _expression.value += ")"
+        _displayExpression.value += ")"
+
+        _display.value = currentNumber()
+    }
+
+    // ---------------------------------------------------------
+    // BACKSPACE
+    // ---------------------------------------------------------
 
     private fun backspace() {
 
         if (_justCalculated.value) {
-            clear()
+            clearCurrent()
             return
         }
 
@@ -429,45 +659,78 @@ class CalculatorEngine(
             return
         }
 
-        /*
-         * Remove √(
-         */
+        if (enteringTaxRate) {
 
-        if (_expression.value.endsWith("√(")) {
-
-            _expression.value =
-                _expression.value.dropLast(2)
-
-        } else if (_expression.value.endsWith("TAX+")) {
-
-            _expression.value =
-                _expression.value.dropLast(4)
-
-        } else if (_expression.value.endsWith("TAX-")) {
-
-            _expression.value =
-                _expression.value.dropLast(4)
-
-        } else {
-
+            /*
+             * Remove last tax digit.
+             */
             _expression.value =
                 _expression.value.dropLast(1)
+
+            if (_display.value.length > 1) {
+                _display.value =
+                    _display.value.dropLast(1)
+            } else {
+                _display.value = "0"
+            }
+
+            if (
+                _displayExpression.value.endsWith("%")
+            ) {
+                _displayExpression.value =
+                    _displayExpression.value.dropLast(1)
+            }
+
+            if (
+                _displayExpression.value.lastOrNull()
+                    ?.isDigit() == true
+            ) {
+                _displayExpression.value =
+                    _displayExpression.value.dropLast(1)
+            }
+
+            /*
+             * If all tax digits were removed,
+             * return to:
+             *
+             * 100 @ TAX+
+             */
+            if (
+                _expression.value.endsWith("TAX+") ||
+                _expression.value.endsWith("TAX-")
+            ) {
+                _displayExpression.value =
+                    _displayExpression.value
+                        .removeSuffix("TAX+")
+
+                _displayExpression.value =
+                    _displayExpression.value
+                        .removeSuffix("TAX-")
+
+                _displayExpression.value =
+                    _displayExpression.value
+                        .removeSuffix(" @ ")
+
+                enteringTaxRate = false
+                _display.value = "0"
+            }
+
+            return
         }
 
-        updateDisplay()
+        _expression.value =
+            _expression.value.dropLast(1)
+
+        _displayExpression.value =
+            _displayExpression.value.dropLast(1)
+
+        _display.value =
+            currentNumber().ifEmpty { "0" }
     }
 
-
-    private fun clear() {
-
-        _expression.value = ""
-        _display.value = "0"
-        _justCalculated.value = false
-
-        // Remove this line if AC should NOT clear history.
-        _history.clear()
-    }
-
+    // ---------------------------------------------------------
+    // CALCULATE
+    // ---------------------------------------------------------
 
     private fun calculate() {
 
@@ -475,116 +738,252 @@ class CalculatorEngine(
             return
         }
 
+        /*
+         * TAX must contain a rate.
+         */
+        if (enteringTaxRate) {
+
+            if (_display.value == "0") {
+                return
+            }
+
+            enteringTaxRate = false
+        }
+
         try {
 
-            val originalExpression =
+            val internalExpression =
                 _expression.value
+
+            val visibleExpression =
+                _displayExpression.value
 
             val result =
                 ExpressionEvaluator.evaluate(
-                    expression = originalExpression,
-                    taxRate = taxRate
+                    internalExpression
                 )
 
-            val formattedResult =
+            val formatted =
                 formatNumber(result)
 
             _history.add(
-                "$originalExpression=$formattedResult"
+                "$visibleExpression = $formatted"
             )
 
-            _display.value =
-                formattedResult
+            _display.value = formatted
 
-            /*
-             * Keep the result as the new expression.
-             *
-             * Example:
-             *
-             * 5 + 5 = 10
-             *
-             * Then pressing × gives:
-             *
-             * 10 ×
-             */
-
-            _expression.value =
-                formattedResult
+            _expression.value = formatted
+            _displayExpression.value = formatted
 
             _justCalculated.value = true
 
         } catch (_: Exception) {
 
-            _display.value = "Error"
-            _justCalculated.value = true
+            showError()
         }
     }
 
+    // ---------------------------------------------------------
+    // SYNC NUMBER
+    // ---------------------------------------------------------
 
-    private fun startNewExpressionIfNeeded() {
+    private fun syncDisplayToExpression() {
 
-        if (_justCalculated.value) {
+        if (_expression.value.isEmpty()) {
 
-            _expression.value = ""
-            _display.value = "0"
+            _expression.value =
+                _display.value
 
-            _justCalculated.value = false
+            _displayExpression.value =
+                _display.value
+
+            return
         }
-    }
-
-
-    private fun canImplicitlyMultiply(): Boolean {
 
         val last =
             _expression.value.lastOrNull()
-                ?: return false
 
-        return last.isDigit() ||
-                last == ')' ||
-                last == '%'
+        /*
+         * After:
+         *
+         * 20 %
+         *
+         * typing 150 should append.
+         */
+        if (
+            last == '%' ||
+            last == '(' ||
+            last?.isOperator() == true
+        ) {
+
+            _expression.value +=
+                _display.value
+
+            _displayExpression.value +=
+                _display.value
+
+            return
+        }
+
+        val match =
+            Regex("""\d*\.?\d+$""")
+                .find(_expression.value)
+
+        if (match != null) {
+
+            _expression.value =
+                _expression.value
+                    .removeRange(match.range) +
+                        _display.value
+
+            _displayExpression.value =
+                _displayExpression.value
+                    .removeRange(match.range) +
+                        _display.value
+
+        } else {
+
+            _expression.value +=
+                _display.value
+
+            _displayExpression.value +=
+                _display.value
+        }
     }
 
+    // ---------------------------------------------------------
+    // CURRENT NUMBER
+    // ---------------------------------------------------------
 
-    private fun getCurrentNumber(): String {
+    private fun currentNumber(): String {
 
         if (_expression.value.isEmpty()) {
-            return ""
+            return _display.value
         }
 
         return Regex("""[-+]?\d*\.?\d+$""")
             .find(_expression.value)
             ?.value
-            ?: ""
+            ?: _display.value
     }
 
+    // ---------------------------------------------------------
+    // REPLACE NUMBER
+    // ---------------------------------------------------------
 
-    private fun updateDisplay() {
+    private fun replaceCurrentNumber(
+        replacement: String
+    ) {
 
-        _display.value =
-            if (_expression.value.isEmpty()) {
-                "0"
-            } else {
-                _expression.value
-            }
+        val expression =
+            _expression.value
+
+        val match =
+            Regex("""[-+]?\d*\.?\d+$""")
+                .find(expression)
+
+        if (match != null) {
+
+            _expression.value =
+                expression.removeRange(match.range) +
+                        replacement
+
+            _displayExpression.value =
+                _displayExpression.value
+                    .removeRange(match.range) +
+                        replacement
+
+        } else {
+
+            _expression.value += replacement
+            _displayExpression.value += replacement
+        }
     }
 
+    // ---------------------------------------------------------
+    // PRETTY EXPRESSION
+    // ---------------------------------------------------------
 
-    private fun formatNumber(value: Double): String {
+    private fun prettyExpression(
+        value: String
+    ): String {
 
-        if (value.isNaN() || value.isInfinite()) {
+        return value
+            .replace("TAX+", " @ TAX+")
+            .replace("TAX-", " @ TAX-")
+    }
+
+    // ---------------------------------------------------------
+    // FORMAT
+    // ---------------------------------------------------------
+
+    private fun formatNumber(
+        value: Double
+    ): String {
+
+        if (
+            value.isNaN() ||
+            value.isInfinite()
+        ) {
             return "Error"
         }
 
-        if (value == value.toLong().toDouble()) {
-            return value.toLong().toString()
+        return if (
+            value == value.toLong().toDouble()
+        ) {
+            value.toLong().toString()
+        } else {
+            value.toString()
+                .trimEnd('0')
+                .trimEnd('.')
         }
-
-        return value
-            .toString()
-            .trimEnd('0')
-            .trimEnd('.')
     }
 
+    // ---------------------------------------------------------
+    // CLEAR
+    // ---------------------------------------------------------
+
+    private fun clear() {
+
+        _display.value = "0"
+        _expression.value = ""
+        _displayExpression.value = ""
+
+        _justCalculated.value = false
+
+        enteringTaxRate = false
+
+        _history.clear()
+    }
+
+    private fun clearCurrent() {
+
+        _display.value = "0"
+        _expression.value = ""
+        _displayExpression.value = ""
+
+        enteringTaxRate = false
+    }
+
+    // ---------------------------------------------------------
+    // ERROR
+    // ---------------------------------------------------------
+
+    private fun showError() {
+
+        _display.value = "Error"
+
+        _expression.value = ""
+        _displayExpression.value = ""
+
+        _justCalculated.value = true
+
+        enteringTaxRate = false
+    }
+
+    // ---------------------------------------------------------
+    // OPERATOR
+    // ---------------------------------------------------------
 
     private fun Char.isOperator(): Boolean {
 

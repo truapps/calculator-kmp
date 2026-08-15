@@ -3,50 +3,34 @@ package com.truapps.calculator.app.main.engine
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-internal object ExpressionEvaluator {
+object ExpressionEvaluator {
 
-    fun evaluate(
-        expression: String,
-        taxRate: Double = 18.0
-    ): Double {
+    fun evaluate(expression: String): Double {
 
-        val parser = Parser(
-            expression = expression,
-            taxRate = taxRate
-        )
+        val parser = Parser(expression)
 
         val result = parser.parseExpression()
 
         parser.skipSpaces()
 
         if (!parser.isAtEnd()) {
-            error(
-                "Unexpected character at ${parser.position}"
-            )
+            error("Unexpected character at ${parser.position}")
         }
 
         return result
     }
 
-
     private class Parser(
-        private val expression: String,
-        private val taxRate: Double
+        private val expression: String
     ) {
 
         var position: Int = 0
             private set
 
-
-        /*
-         * expression
-         *
-         *     5 + 2 × 3
-         *
-         * becomes:
-         *
-         *     5 + (2 × 3)
-         */
+        // -----------------------------------------------------
+        // +
+        // -
+        // -----------------------------------------------------
 
         fun parseExpression(): Double {
 
@@ -68,26 +52,20 @@ internal object ExpressionEvaluator {
                         value -= parseTerm()
                     }
 
-                    else -> {
-                        return value
-                    }
+                    else -> return value
                 }
             }
         }
 
-
-        /*
-         * term
-         *
-         * Handles:
-         *
-         * ×
-         * ÷
-         */
+        // -----------------------------------------------------
+        // ×
+        // ÷
+        // %
+        // -----------------------------------------------------
 
         private fun parseTerm(): Double {
 
-            var value = parsePower()
+            var value = parseUnary()
 
             while (true) {
 
@@ -97,7 +75,7 @@ internal object ExpressionEvaluator {
 
                     '×', '*' -> {
                         position++
-                        value *= parsePower()
+                        value *= parseUnary()
                     }
 
                     '÷', '/' -> {
@@ -105,7 +83,7 @@ internal object ExpressionEvaluator {
                         position++
 
                         val divisor =
-                            parsePower()
+                            parseUnary()
 
                         if (divisor == 0.0) {
                             error("Division by zero")
@@ -114,72 +92,32 @@ internal object ExpressionEvaluator {
                         value /= divisor
                     }
 
-                    else -> {
-                        return value
-                    }
-                }
-            }
-        }
+                    '%' -> {
 
+                        position++
 
-        /*
-         * power
-         *
-         * Examples:
-         *
-         * 2^3
-         * 5²
-         * 2³
-         */
-
-        private fun parsePower(): Double {
-
-            var value = parseUnary()
-
-            skipSpaces()
-
-            while (true) {
-
-                when {
-
-                    match("^") -> {
-
-                        val exponent =
+                        /*
+                         * 20 % 150
+                         *
+                         * = 20% of 150
+                         *
+                         * = 30
+                         */
+                        val amount =
                             parseUnary()
 
                         value =
-                            value.pow(exponent)
+                            value * amount / 100.0
                     }
 
-                    match("²") -> {
-                        value = value.pow(2)
-                    }
-
-                    match("³") -> {
-                        value = value.pow(3)
-                    }
-
-                    else -> {
-                        break
-                    }
+                    else -> return value
                 }
-
-                skipSpaces()
             }
-
-            return value
         }
 
-
-        /*
-         * unary
-         *
-         * Handles:
-         *
-         * -5
-         * +5
-         * √25
-         */
+        // -----------------------------------------------------
+        // UNARY
+        // -----------------------------------------------------
 
         private fun parseUnary(): Double {
 
@@ -201,30 +139,19 @@ internal object ExpressionEvaluator {
                         parseUnary()
 
                     if (value < 0) {
-                        error(
-                            "Square root of negative number"
-                        )
+                        error("Square root of negative number")
                     }
 
                     sqrt(value)
                 }
 
-                else -> {
-                    parsePostfix()
-                }
+                else -> parsePostfix()
             }
         }
 
-
-        /*
-         * postfix
-         *
-         * Handles:
-         *
-         * %
-         * TAX+
-         * TAX-
-         */
+        // -----------------------------------------------------
+        // POSTFIX
+        // -----------------------------------------------------
 
         private fun parsePostfix(): Double {
 
@@ -236,35 +163,44 @@ internal object ExpressionEvaluator {
 
                 when {
 
-                    match("%") -> {
-                        value /= 100.0
+                    match("²") -> {
+
+                        value =
+                            value.pow(2.0)
+                    }
+
+                    match("³") -> {
+
+                        value =
+                            value.pow(3.0)
                     }
 
                     match("TAX+") -> {
 
+                        val rate =
+                            parseNumber()
+
                         value +=
-                            value * taxRate / 100.0
+                            value * rate / 100.0
                     }
 
                     match("TAX-") -> {
 
+                        val rate =
+                            parseNumber()
+
                         value -=
-                            value * taxRate / 100.0
+                            value * rate / 100.0
                     }
 
-                    else -> {
-                        return value
-                    }
+                    else -> return value
                 }
             }
         }
 
-
-        /*
-         * primary
-         *
-         * Number or parentheses
-         */
+        // -----------------------------------------------------
+        // PRIMARY
+        // -----------------------------------------------------
 
         private fun parsePrimary(): Double {
 
@@ -287,6 +223,9 @@ internal object ExpressionEvaluator {
             return parseNumber()
         }
 
+        // -----------------------------------------------------
+        // NUMBER
+        // -----------------------------------------------------
 
         private fun parseNumber(): Double {
 
@@ -295,7 +234,7 @@ internal object ExpressionEvaluator {
             val start =
                 position
 
-            var hasDecimal = false
+            var decimalFound = false
 
             while (!isAtEnd()) {
 
@@ -308,15 +247,14 @@ internal object ExpressionEvaluator {
                         position++
                     }
 
-                    char == '.' && !hasDecimal -> {
+                    char == '.' &&
+                            !decimalFound -> {
 
-                        hasDecimal = true
+                        decimalFound = true
                         position++
                     }
 
-                    else -> {
-                        break
-                    }
+                    else -> break
                 }
             }
 
@@ -331,8 +269,13 @@ internal object ExpressionEvaluator {
                 .toDouble()
         }
 
+        // -----------------------------------------------------
+        // MATCH
+        // -----------------------------------------------------
 
-        private fun match(value: String): Boolean {
+        private fun match(
+            value: String
+        ): Boolean {
 
             if (
                 expression.regionMatches(
@@ -344,12 +287,29 @@ internal object ExpressionEvaluator {
             ) {
 
                 position += value.length
+
                 return true
             }
 
             return false
         }
 
+        // -----------------------------------------------------
+        // PEEK
+        // -----------------------------------------------------
+
+        private fun peek(): Char? {
+
+            return if (isAtEnd()) {
+                null
+            } else {
+                expression[position]
+            }
+        }
+
+        // -----------------------------------------------------
+        // SPACES
+        // -----------------------------------------------------
 
         fun skipSpaces() {
 
@@ -361,20 +321,12 @@ internal object ExpressionEvaluator {
             }
         }
 
+        // -----------------------------------------------------
+        // END
+        // -----------------------------------------------------
 
         fun isAtEnd(): Boolean {
-
             return position >= expression.length
-        }
-
-
-        private fun peek(): Char? {
-
-            return if (isAtEnd()) {
-                null
-            } else {
-                expression[position]
-            }
         }
     }
 }
