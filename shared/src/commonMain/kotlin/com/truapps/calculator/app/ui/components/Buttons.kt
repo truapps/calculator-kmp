@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.truapps.calculator.app.PlatformUtils
+import com.truapps.calculator.app.PlatformUtils.isAndroid
 import com.truapps.calculator.app.ui.theme.NumberFontBold
 import com.truapps.calculator.app.ui.theme.submitButtonGradientColor
 import com.truapps.calculator.app.ui.theme.clearButtonColor
@@ -134,7 +136,7 @@ fun DeleteButton(height: Dp = 60.dp, width: Dp = 84.dp, onClick: () -> Unit) {
 
     Center(height = height, width =width, color = clearButtonColor, shape = RoundedCornerShape(10.dp), onClick = onClick) {
         Text(
-            text = "←",
+            text = if (isAndroid()) "⌫" else "←",
             maxLines = 1,
             style = buttonTextStyle(
                 color = Color.White,
