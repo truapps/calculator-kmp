@@ -1,7 +1,10 @@
 package com.truapps.calculator.app.main
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,15 +14,27 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,7 +46,9 @@ import com.truapps.calculator.app.main.engine.CalculatorEngine
 import com.truapps.calculator.app.main.engine.CalculatorKey
 import com.truapps.calculator.app.ui.components.*
 import com.truapps.calculator.app.ui.theme.*
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun MainScreen() {
@@ -39,10 +56,52 @@ fun MainScreen() {
         CalculatorEngine()
     }
 
+    var expressionValue by remember {
+        mutableStateOf(
+            TextFieldValue(
+                text = engine.expression.value,
+                selection = TextRange(engine.expression.value.length)
+            )
+        )
+    }
     val scrollState = rememberScrollState()
 
     LaunchedEffect(engine.display.value) {
         scrollState.animateScrollTo(scrollState.maxValue)
+    }
+
+    LaunchedEffect(engine.expression.value) {
+
+        val newText = engine.expression.value
+
+        if (expressionValue.text != newText) {
+
+            expressionValue = TextFieldValue(
+                text = newText,
+                selection = TextRange(
+                    engine.cursorPosition.value.coerceIn(
+                        0,
+                        newText.length
+                    )
+                )
+            )
+        }
+    }
+    var textLayoutResult by remember {
+        mutableStateOf<TextLayoutResult?>(null)
+    }
+    var cursorVisible by remember {
+        mutableStateOf(true)
+    }
+
+    LaunchedEffect(engine.cursorPosition) {
+
+        cursorVisible = true
+
+        while (true) {
+            delay(500.milliseconds)
+            cursorVisible = !cursorVisible
+        }
     }
     val calculationHistory = engine.history.joinToString("\n") { it }
     AppTheme {
@@ -60,46 +119,125 @@ fun MainScreen() {
                         contentScale = ContentScale.FillWidth,
                         painter = painterResource(resource = Res.drawable.header_image), contentDescription = null)
 
-                    Box(
-                        modifier = Modifier
+                    Column(
+                        Modifier
                             .fillMaxWidth()
                             .weight(1f)
                             .clip(RoundedCornerShape(20.dp))
                             .background(displayColor)
                             .padding(8.dp),
-                        contentAlignment = Alignment.BottomEnd
+                        verticalArrangement = Arrangement.Bottom
                     ) {
-                        Text(
-                            modifier = Modifier.fillMaxWidth().verticalScroll(state = scrollState),
-                            text = buildAnnotatedString {
 
-                                withStyle(
-                                    SpanStyle(
-                                        color = displayTextColor.copy(alpha = 0.5f),
-                                        fontFamily = DisplayFontRegular,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = 24.sp
-                                    )
-                                ) {
-                                    append(calculationHistory)
+                        // HISTORY
+                        Box(modifier = Modifier.fillMaxWidth()
+                            .weight(1f),contentAlignment = Alignment.BottomEnd) {
+                            Text(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(scrollState),
+
+                                text = buildAnnotatedString {
+
+                                    withStyle(
+                                        SpanStyle(
+                                            color = displayTextColor.copy(alpha = 0.5f),
+                                            fontFamily = DisplayFontRegular,
+                                            fontSize = 24.sp
+                                        )
+                                    ) {
+                                        append(calculationHistory)
+                                    }
+                                },
+
+                                textAlign = TextAlign.End
+                            )
+                        }
+
+                        // CURRENT EXPRESSION
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusable()
+                                .onKeyEvent { event ->
+
+                                    val calculatorKey = engine.getCalculatorKey(event)
+
+                                    if (calculatorKey != null) {
+                                        engine.press(calculatorKey)
+                                        true
+                                    } else {
+                                        false
+                                    }
                                 }
+                                .pointerInput(textLayoutResult) {
 
-                                append("\n")
+                                    detectTapGestures { offset ->
 
-                                withStyle(
-                                    SpanStyle(
-                                        color = displayTextColor,
-                                        fontFamily = DisplayFontRegular,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = 24.sp
-                                    )
-                                ) {
-                                    append(engine.expression.value)
+                                        val layout =
+                                            textLayoutResult
+                                                ?: return@detectTapGestures
+
+                                        val position =
+                                            layout.getOffsetForPosition(offset)
+
+                                        engine.setCursorPosition(position)
+                                    }
                                 }
-                            },
-                            textAlign = TextAlign.End,
-                            softWrap = true
-                        )
+                        ) {
+
+                            Text(
+                                modifier = Modifier.fillMaxWidth(),
+
+                                text = engine.expression.value,
+
+                                textAlign = TextAlign.End,
+
+                                style = TextStyle(
+                                    color = displayTextColor,
+                                    fontFamily = DisplayFontRegular,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 24.sp
+                                ),
+
+                                onTextLayout = {
+                                    textLayoutResult = it
+                                }
+                            )
+
+                            Canvas(
+                                modifier = Modifier.matchParentSize()
+                            ) {
+
+                                val layout =
+                                    textLayoutResult
+                                        ?: return@Canvas
+
+                                val cursorRect =
+                                    layout.getCursorRect(
+                                        engine.cursorPosition.value
+                                    )
+
+                                drawLine(
+                                    brush = SolidColor(
+                                        if(cursorVisible) displayTextColor else Color.Transparent,
+                                    ),
+
+                                    start = Offset(
+                                        cursorRect.left,
+                                        cursorRect.top
+                                    ),
+
+                                    end = Offset(
+                                        cursorRect.left,
+                                        cursorRect.bottom
+                                    ),
+
+                                    strokeWidth = 2.dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                        }
                     }
 
                     Row1(engine)

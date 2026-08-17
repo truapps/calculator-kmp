@@ -1,49 +1,82 @@
 package com.truapps.calculator.app.main.engine
 
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import kotlin.math.pow
-import kotlin.math.sqrt
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 
 class CalculatorEngine {
 
-    private val _display = mutableStateOf("0")
+    private val _display: MutableState<String> =
+        mutableStateOf("0")
+
     val display: State<String> = _display
 
-    /**
-     * Internal expression used by ExpressionEvaluator.
+    /*
+     * This is now the SINGLE expression.
      *
      * Example:
-     * 100TAX+18
-     */
-    private val _expression = mutableStateOf("")
-
-    /**
-     * Pretty expression shown in UI.
      *
-     * Example:
      * 100 @ TAX+18%
+     *
+     * The UI displays exactly this expression.
+     *
+     * ExpressionEvaluator converts the TAX syntax
+     * internally before calculating.
      */
-    private val _displayExpression = mutableStateOf("")
-    val expression: State<String> = _displayExpression
+    private val _expression: MutableState<String> =
+        mutableStateOf("")
 
-    private val _justCalculated = mutableStateOf(false)
-    val justCalculated: State<Boolean> = _justCalculated
+    val expression: State<String> = _expression
 
-    private val _history = mutableStateListOf<String>()
+    private val _justCalculated: MutableState<Boolean> =
+        mutableStateOf(false)
+
+    val justCalculated: State<Boolean> =
+        _justCalculated
+
+    private val _history: SnapshotStateList<String> =
+        mutableStateListOf()
+
     val history: List<String> = _history
 
-    /**
-     * True while entering the tax percentage.
+    /*
+     * Cursor position in the visible expression.
      *
      * Example:
      *
-     * 100 @ TAX+
-     *             ↑
-     *        enteringTaxRate
+     * 100 + 25
+     *       ↑
+     *
+     * cursorPosition = 6
+     */
+    private val _cursorPosition: MutableState<Int> = mutableStateOf(0)
+
+    val cursorPosition: State<Int> = _cursorPosition
+
+    /*
+     * True while entering:
+     *
+     * TAX+18%
+     *       ↑
+     *
+     * or
+     *
+     * TAX-18%
      */
     private var enteringTaxRate = false
+
+    // =========================================================
+    // PUBLIC
+    // =========================================================
 
     fun press(key: CalculatorKey) {
 
@@ -73,10 +106,6 @@ class CalculatorEngine {
                 inputOperator("÷")
             }
 
-            CalculatorKey.Percentage -> {
-                percentage()
-            }
-
             CalculatorKey.SqRoot -> {
                 squareRoot()
             }
@@ -101,6 +130,10 @@ class CalculatorEngine {
                 toggleSign()
             }
 
+            CalculatorKey.Percentage -> {
+                percentage()
+            }
+
             CalculatorKey.TaxPlus -> {
                 startTax(plus = true)
             }
@@ -121,111 +154,480 @@ class CalculatorEngine {
                 calculate()
             }
 
-            CalculatorKey.Left -> Unit
-            CalculatorKey.Right -> Unit
+            CalculatorKey.Left -> {
+                moveCursorLeft()
+            }
+
+            CalculatorKey.Right -> {
+                moveCursorRight()
+            }
+        }
+    }
+    fun getCalculatorKey(
+        event: KeyEvent
+    ): CalculatorKey? {
+
+        if (event.type != KeyEventType.KeyDown) {
+            return null
+        }
+        println("KeyEvent: $event")
+
+        if(event.isShiftPressed) {
+
+            return when (event.key) {
+                // Operators
+                Key.Two -> CalculatorKey.Square
+                Key.Three -> CalculatorKey.Cube
+                Key.Four -> CalculatorKey.SqRoot
+                Key.Five -> CalculatorKey.Percentage
+                Key.Eight -> CalculatorKey.Multiply
+                Key.Nine -> CalculatorKey.OpenParenthesis
+                Key.Zero -> CalculatorKey.CloseParenthesis
+                Key.Minus,Key.NumPadSubtract -> CalculatorKey.PlusMinus
+                Key.Equals -> CalculatorKey.Add
+                Key.NumPadDelete-> CalculatorKey.Backspace
+                Key.T-> CalculatorKey.TaxPlus
+                else -> null
+
+            }
+        }
+        if(event.isAltPressed) {
+            return when (event.key) {
+                Key.T-> CalculatorKey.TaxMinus
+                else -> null
+            }
+        }
+        return when (event.key) {
+
+
+            // Numbers
+            Key.One -> CalculatorKey.Digit(1)
+            Key.Two ->  CalculatorKey.Digit(2)
+            Key.Three -> CalculatorKey.Digit(3)
+            Key.Four -> CalculatorKey.Digit(4)
+            Key.Five -> CalculatorKey.Digit(5)
+            Key.Six -> CalculatorKey.Digit(6)
+            Key.Seven -> CalculatorKey.Digit(7)
+            Key.Eight -> CalculatorKey.Digit(8)
+            Key.Nine ->  CalculatorKey.Digit(9)
+            Key.Zero ->  CalculatorKey.Digit(0)
+
+            // Operators
+            Key.Plus, Key.NumPadEnter -> CalculatorKey.Add
+            Key.Minus, Key.NumPadSubtract -> CalculatorKey.Subtract
+
+            Key.Multiply,Key.NumPadMultiply -> CalculatorKey.Multiply
+            Key.Slash,Key.NumPadDivide -> CalculatorKey.Divide
+
+            // Decimal
+            Key.Period,Key.NumPadDelete -> CalculatorKey.Decimal
+
+            // Enter
+            Key.Enter, Key.NumPadEnter -> CalculatorKey.Equals
+
+            // Backspace
+            Key.Backspace -> CalculatorKey.Backspace
+
+            // Parentheses
+            Key.LeftBracket -> CalculatorKey.OpenParenthesis
+            Key.RightBracket -> CalculatorKey.CloseParenthesis
+
+            // Escape
+            Key.Escape,Key.Delete -> CalculatorKey.Clear
+
+            // Cursor
+            Key.DirectionLeft -> CalculatorKey.Left
+            Key.DirectionRight -> CalculatorKey.Right
+            else -> null
         }
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
+    // CURSOR
+    // =========================================================
+
+    fun setCursorPosition(position: Int) {
+
+        _cursorPosition.value = position.coerceIn(
+            0,
+            _expression.value.length
+        )
+    }
+
+    /*
+     * Called when TextFieldValue changes.
+     *
+     * Important:
+     * We don't modify the cursor here.
+     */
+    fun setExpression(value: String) {
+
+        _expression.value = value
+
+        _cursorPosition.value =
+            _cursorPosition.value.coerceIn(
+                0,
+                value.length
+            )
+
+        updateDisplayFromExpression()
+    }
+
+    private fun moveCursorLeft() {
+
+        if (_cursorPosition.value > 0) {
+            _cursorPosition.value--
+        }
+    }
+
+    private fun moveCursorRight() {
+
+        if (_cursorPosition.value < _expression.value.length) {
+            _cursorPosition.value++
+        }
+    }
+
+    // =========================================================
     // DIGIT
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun inputDigit(digit: Int) {
 
-        if (_justCalculated.value) {
-            clearCurrent()
-            _justCalculated.value = false
-        }
-
         if (enteringTaxRate) {
 
-            /*
-             * Internal:
-             *
-             * 100TAX+
-             *
-             * 1 -> 100TAX+1
-             * 8 -> 100TAX+18
-             */
-            _expression.value += digit
-
-            /*
-             * Display:
-             *
-             * 100 @ TAX+
-             *
-             * 1 -> 100 @ TAX+1%
-             * 8 -> 100 @ TAX+18%
-             */
-            if (_display.value == "0") {
-                _display.value = digit.toString()
-            } else {
-                _display.value += digit
-            }
-
-            updateTaxDisplay()
+            inputTaxDigit(digit)
 
             return
         }
 
-        if (_display.value == "0") {
-            _display.value = digit.toString()
-        } else {
-            _display.value += digit
+        if (_justCalculated.value) {
+
+            clearCurrent()
+
+            _justCalculated.value = false
         }
 
-        syncDisplayToExpression()
+        insertAtCursor(
+            digit.toString()
+        )
+
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // DECIMAL
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun inputDecimal() {
 
+        if (enteringTaxRate) {
+
+            inputTaxDecimal()
+
+            return
+        }
+
         if (_justCalculated.value) {
+
             clearCurrent()
+
             _justCalculated.value = false
         }
 
-        if (_display.value.contains(".")) {
+        /*
+         * Find the number around the cursor.
+         *
+         * Don't allow:
+         *
+         * 12.3.4
+         */
+        val number = numberAroundCursor()
+
+        if (number.contains(".")) {
             return
         }
-
-        if (enteringTaxRate) {
-
-            /*
-             * Internal:
-             *
-             * 100TAX+18.
-             */
-            _expression.value += "."
-
-            _display.value += "."
-
-            updateTaxDisplay()
-
-            return
-        }
-
-        if (_display.value == "0") {
-            _display.value = "0."
-        } else {
-            _display.value += "."
-        }
-
-        syncDisplayToExpression()
-    }
-
-    // ---------------------------------------------------------
-    // NORMAL OPERATORS
-    // ---------------------------------------------------------
-
-    private fun inputOperator(operator: String) {
 
         /*
-         * TAX rate must be completed first.
+         * If cursor is at beginning of a number,
+         * insert 0.
          */
+        if (
+            _cursorPosition.value == 0 || _expression.value
+                .getOrNull(_cursorPosition.value - 1)
+                ?.isDigit()==false
+
+        ) {
+
+            insertAtCursor("0.")
+
+        } else {
+
+            insertAtCursor(".")
+        }
+
+        updateDisplayFromExpression()
+    }
+
+    // =========================================================
+    // TAX
+    // =========================================================
+
+    private fun startTax(plus: Boolean) {
+
+        if (_justCalculated.value) {
+
+            /*
+             * Allow:
+             *
+             * 118
+             *
+             * TAX+
+             *
+             * 118 @ TAX+
+             */
+            _justCalculated.value = false
+        }
+
+        if (_expression.value.isEmpty()) {
+
+            insertAtCursor(
+                _display.value
+            )
+        }
+
+        /*
+         * TAX should be applied to a value,
+         * not directly after an operator.
+         */
+        val previous =
+            _expression.value
+                .getOrNull(
+                    _cursorPosition.value - 1
+                )
+
+        if (
+            previous == null ||
+            previous.isOperator() ||
+            previous == '('
+        ) {
+            return
+        }
+
+        /*
+         * Prevent:
+         *
+         * 100 @ TAX+ @ TAX+
+         */
+        if (
+            _expression.value
+                .substring(0, _cursorPosition.value)
+                .endsWith(" @ TAX+") ||
+            _expression.value
+                .substring(0, _cursorPosition.value)
+                .endsWith(" @ TAX-")
+        ) {
+            return
+        }
+
+        val taxText =
+            if (plus) {
+                " @ TAX+"
+            } else {
+                " @ TAX-"
+            }
+
+        insertAtCursor(taxText)
+
+        enteringTaxRate = true
+
+        _display.value = "0"
+    }
+
+    private fun inputTaxDigit(digit: Int) {
+
+        val expression =
+            _expression.value
+
+        val beforeCursor =
+            expression.substring(
+                0,
+                _cursorPosition.value
+            )
+
+        val taxStartPlus =
+            beforeCursor.lastIndexOf(
+                " @ TAX+"
+            )
+
+        val taxStartMinus =
+            beforeCursor.lastIndexOf(
+                " @ TAX-"
+            )
+
+        val taxStart =
+            maxOf(
+                taxStartPlus,
+                taxStartMinus
+            )
+
+        if (taxStart == -1) {
+
+            enteringTaxRate = false
+
+            inputDigit(digit)
+
+            return
+        }
+
+        val taxPrefixEnd =
+            taxStart +
+                    if (taxStartPlus > taxStartMinus) {
+                        " @ TAX+".length
+                    } else {
+                        " @ TAX-".length
+                    }
+
+        /*
+         * Existing tax rate.
+         *
+         * Example:
+         *
+         * 100 @ TAX+18%
+         *
+         * rate = 18
+         */
+        var rate =
+            expression
+                .substring(
+                    taxPrefixEnd,
+                    _cursorPosition.value
+                )
+                .removeSuffix("%")
+
+        /*
+         * If cursor is before %, don't include it.
+         */
+        rate =
+            rate.filter {
+                it.isDigit() || it == '.'
+            }
+
+        rate += digit.toString()
+
+        val before =
+            expression.substring(
+                0,
+                taxPrefixEnd
+            )
+
+        val afterStart =
+            if (
+                expression
+                    .getOrNull(_cursorPosition.value) == '%'
+            ) {
+                _cursorPosition.value + 1
+            } else {
+                _cursorPosition.value
+            }
+
+        val after =
+            expression.substring(
+                afterStart
+            )
+
+        val newExpression =
+            before +
+                    rate +
+                    "%" +
+                    after
+
+        _expression.value =
+            newExpression
+
+        _cursorPosition.value =
+            before.length +
+                    rate.length +
+                    1
+
+        _display.value = rate
+    }
+
+    private fun inputTaxDecimal() {
+
+        val expression =
+            _expression.value
+
+        val beforeCursor =
+            expression.substring(
+                0,
+                _cursorPosition.value
+            )
+
+        val taxStart =
+            maxOf(
+                beforeCursor.lastIndexOf(" @ TAX+"),
+                beforeCursor.lastIndexOf(" @ TAX-")
+            )
+
+        if (taxStart == -1) {
+            return
+        }
+
+        val taxMarkerLength =
+            if (
+                beforeCursor
+                    .lastIndexOf(" @ TAX+") >
+                beforeCursor
+                    .lastIndexOf(" @ TAX-")
+            ) {
+                " @ TAX+".length
+            } else {
+                " @ TAX-".length
+            }
+
+        val rateStart =
+            taxStart + taxMarkerLength
+
+        val rate =
+            expression
+                .substring(
+                    rateStart,
+                    _cursorPosition.value
+                )
+                .removeSuffix("%")
+
+        if (rate.contains(".")) {
+            return
+        }
+
+        val before =
+            expression.substring(
+                0,
+                _cursorPosition.value
+            )
+
+        val after =
+            expression.substring(
+                _cursorPosition.value
+            )
+
+        _expression.value =
+            before + "." + after
+
+        _cursorPosition.value++
+
+        _display.value =
+            rate + "."
+    }
+
+    // =========================================================
+    // OPERATORS
+    // =========================================================
+
+    private fun inputOperator(
+        operator: String
+    ) {
+
         if (enteringTaxRate) {
 
             if (_display.value == "0") {
@@ -236,19 +638,36 @@ class CalculatorEngine {
         }
 
         if (_expression.value.isEmpty()) {
-            _expression.value = _display.value
-            _displayExpression.value = _display.value
+
+            insertAtCursor(
+                _display.value
+            )
         }
 
-        val last = _expression.value.lastOrNull()
+        val previous =
+            _expression.value
+                .getOrNull(
+                    _cursorPosition.value - 1
+                )
 
-        if (last?.isOperator() == true) {
+        /*
+         * Replace an existing operator.
+         */
+        if (
+            previous != null &&
+            previous.isOperator()
+        ) {
 
             _expression.value =
-                _expression.value.dropLast(1) + operator
+                _expression.value
+                    .removeRange(
+                        _cursorPosition.value - 1,
+                        _cursorPosition.value
+                    )
 
-            _displayExpression.value =
-                _displayExpression.value.dropLast(1) + operator
+            _cursorPosition.value--
+
+            insertAtCursor(operator)
 
             _display.value = "0"
 
@@ -256,37 +675,30 @@ class CalculatorEngine {
         }
 
         /*
-         * Don't allow:
-         *
-         * 20%+
-         *
-         * without a second operand.
+         * Don't put an operator immediately
+         * after an opening parenthesis.
          */
-        if (last == '%') {
+        if (previous == '(') {
             return
         }
 
-        _expression.value += operator
-        _displayExpression.value += operator
+        insertAtCursor(operator)
 
         _display.value = "0"
+
         _justCalculated.value = false
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // PERCENTAGE
-    // ---------------------------------------------------------
+    // =========================================================
 
-    /**
-     * Binary percentage.
+    /*
+     * Binary percentage:
      *
      * 20 % 150
      *
      * = 30
-     *
-     * NOT:
-     *
-     * 20 / 100
      */
     private fun percentage() {
 
@@ -294,177 +706,42 @@ class CalculatorEngine {
             return
         }
 
-        /*
-         * Important:
-         *
-         * 20 + 30 = 50
-         *
-         * then %
-         *
-         * should become:
-         *
-         * 50%
-         *
-         * and must NOT reset the expression.
-         */
-        if (_justCalculated.value) {
-            _justCalculated.value = false
-        }
-
         if (_expression.value.isEmpty()) {
-            _expression.value = _display.value
-            _displayExpression.value = _display.value
+
+            insertAtCursor(
+                _display.value
+            )
         }
 
-        val last = _expression.value.lastOrNull()
+        val previous =
+            _expression.value
+                .getOrNull(
+                    _cursorPosition.value - 1
+                )
 
         if (
-            last == null ||
-            last.isOperator() ||
-            last == '%' ||
-            last == '('
+            previous == null ||
+            previous.isOperator() ||
+            previous == '(' ||
+            previous == '%'
         ) {
             return
         }
 
-        _expression.value += "%"
-        _displayExpression.value += "%"
+        insertAtCursor("%")
 
         /*
-         * Next digits are the second operand.
-         *
-         * 20 % 150
+         * After `%`, the next number becomes
+         * the second operand.
          */
         _display.value = "0"
+
+        _justCalculated.value = false
     }
 
-    // ---------------------------------------------------------
-    // TAX
-    // ---------------------------------------------------------
-
-    /**
-     * TAX+
-     *
-     * User sees:
-     *
-     * 100 @ TAX+
-     *
-     * Then entering 18:
-     *
-     * 100 @ TAX+18%
-     *
-     * Internal:
-     *
-     * 100TAX+18
-     */
-    private fun startTax(plus: Boolean) {
-
-        if (enteringTaxRate) {
-            return
-        }
-
-        if (_expression.value.isEmpty()) {
-            _expression.value = _display.value
-            _displayExpression.value = _display.value
-        }
-
-        val last = _expression.value.lastOrNull()
-
-        if (
-            last == null ||
-            last.isOperator() ||
-            last == '%' ||
-            last == '('
-        ) {
-            return
-        }
-
-        /*
-         * Internal evaluator expression.
-         */
-        _expression.value += if (plus) {
-            "TAX+"
-        } else {
-            "TAX-"
-        }
-
-        /*
-         * User-facing expression.
-         */
-        _displayExpression.value += if (plus) {
-            " @ TAX+"
-        } else {
-            " @ TAX-"
-        }
-
-        enteringTaxRate = true
-
-        /*
-         * Tax rate input starts from zero.
-         */
-        _display.value = "0"
-    }
-
-    /**
-     * Updates:
-     *
-     * 100 @ TAX+
-     *
-     * into:
-     *
-     * 100 @ TAX+18%
-     */
-    private fun updateTaxDisplay() {
-
-        /*
-         * Remove the previous rate.
-         */
-        val base = _displayExpression.value
-            .substringBeforeLast("TAX+")
-            .takeIf {
-                _displayExpression.value.contains("TAX+")
-            }
-            ?: _displayExpression.value
-                .substringBeforeLast("TAX-")
-                .takeIf {
-                    _displayExpression.value.contains("TAX-")
-                }
-
-        val isPlus =
-            _displayExpression.value.contains("TAX+")
-
-        val isMinus =
-            _displayExpression.value.contains("TAX-")
-
-        if (isPlus) {
-
-            val prefix =
-                _displayExpression.value.substringBefore("TAX+")
-
-            _displayExpression.value =
-                prefix + "TAX+" + _display.value + "%"
-
-        } else if (isMinus) {
-
-            val prefix =
-                _displayExpression.value.substringBefore("TAX-")
-
-            _displayExpression.value =
-                prefix + "TAX-" + _display.value + "%"
-
-        } else {
-
-            /*
-             * Fallback.
-             */
-            _displayExpression.value +=
-                _display.value + "%"
-        }
-    }
-
-    // ---------------------------------------------------------
+    // =========================================================
     // SQUARE ROOT
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun squareRoot() {
 
@@ -472,30 +749,16 @@ class CalculatorEngine {
             return
         }
 
-        val number =
-            currentNumber().toDoubleOrNull()
-                ?: return
-
-        if (number < 0) {
-            showError()
-            return
-        }
-
-        val result = sqrt(number)
-
-        replaceCurrentNumber(
-            "√$number"
-        )
-
-        _display.value =
-            formatNumber(result)
+        insertAtCursor("√")
 
         _justCalculated.value = false
+
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // SQUARE
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun square() {
 
@@ -503,26 +766,16 @@ class CalculatorEngine {
             return
         }
 
-        val number =
-            currentNumber().toDoubleOrNull()
-                ?: return
-
-        val result =
-            number * number
-
-        replaceCurrentNumber(
-            "$number²"
-        )
-
-        _display.value =
-            formatNumber(result)
+        insertAtCursor("²")
 
         _justCalculated.value = false
+
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // CUBE
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun cube() {
 
@@ -530,26 +783,16 @@ class CalculatorEngine {
             return
         }
 
-        val number =
-            currentNumber().toDoubleOrNull()
-                ?: return
-
-        val result =
-            number * number * number
-
-        replaceCurrentNumber(
-            "$number³"
-        )
-
-        _display.value =
-            formatNumber(result)
+        insertAtCursor("³")
 
         _justCalculated.value = false
+
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // PLUS / MINUS
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun toggleSign() {
 
@@ -558,179 +801,205 @@ class CalculatorEngine {
         }
 
         val number =
-            currentNumber().toDoubleOrNull()
+            numberAroundCursor()
+
+        val value =
+            number.toDoubleOrNull()
                 ?: return
 
-        val result = -number
-        val formatted = formatNumber(result)
+        val start =
+            _cursorPosition.value - number.length
 
-        replaceCurrentNumber(formatted)
+        val replacement =
+            if (value < 0) {
+                formatNumber(-value)
+            } else {
+                "-${formatNumber(value)}"
+            }
 
-        _display.value = formatted
-        _displayExpression.value =
-            prettyExpression(_expression.value)
+        _expression.value =
+            _expression.value
+                .removeRange(
+                    start,
+                    _cursorPosition.value
+                )
+                .let {
+                    it.substring(
+                        0,
+                        start
+                    ) +
+                            replacement +
+                            it.substring(start)
+                }
+
+        _cursorPosition.value =
+            start + replacement.length
+
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // PARENTHESES
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun openParenthesis() {
 
         if (_justCalculated.value) {
+
             clearCurrent()
+
             _justCalculated.value = false
         }
 
-        if (_expression.value.isEmpty()) {
-
-            _expression.value = "("
-            _displayExpression.value = "("
-            _display.value = "0"
-
-            return
-        }
-
-        val last =
-            _expression.value.lastOrNull()
+        val previous =
+            _expression.value
+                .getOrNull(
+                    _cursorPosition.value - 1
+                )
 
         if (
-            last != null &&
+            previous != null &&
             (
-                    last.isDigit() ||
-                            last == ')' ||
-                            last == '²' ||
-                            last == '³'
+                    previous.isDigit() ||
+                            previous == ')' ||
+                            previous == '²' ||
+                            previous == '³'
                     )
         ) {
 
-            _expression.value += "×"
-            _displayExpression.value += "×"
+            insertAtCursor("×")
         }
 
-        _expression.value += "("
-        _displayExpression.value += "("
+        insertAtCursor("(")
 
         _display.value = "0"
     }
 
     private fun closeParenthesis() {
 
+        val before =
+            _expression.value
+                .substring(
+                    0,
+                    _cursorPosition.value
+                )
+
         val open =
-            _expression.value.count { it == '(' }
+            before.count {
+                it == '('
+            }
 
         val close =
-            _expression.value.count { it == ')' }
+            before.count {
+                it == ')'
+            }
 
         if (open <= close) {
             return
         }
 
-        val last =
-            _expression.value.lastOrNull()
+        val previous =
+            _expression.value
+                .getOrNull(
+                    _cursorPosition.value - 1
+                )
 
         if (
-            last == null ||
-            last.isOperator() ||
-            last == '(' ||
-            last == '%'
+            previous == null ||
+            previous.isOperator() ||
+            previous == '('
         ) {
             return
         }
 
-        _expression.value += ")"
-        _displayExpression.value += ")"
+        insertAtCursor(")")
 
-        _display.value = currentNumber()
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // BACKSPACE
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun backspace() {
-
-        if (_justCalculated.value) {
-            clearCurrent()
-            return
-        }
 
         if (_expression.value.isEmpty()) {
             return
         }
 
-        if (enteringTaxRate) {
-
-            /*
-             * Remove last tax digit.
-             */
-            _expression.value =
-                _expression.value.dropLast(1)
-
-            if (_display.value.length > 1) {
-                _display.value =
-                    _display.value.dropLast(1)
-            } else {
-                _display.value = "0"
-            }
-
-            if (
-                _displayExpression.value.endsWith("%")
-            ) {
-                _displayExpression.value =
-                    _displayExpression.value.dropLast(1)
-            }
-
-            if (
-                _displayExpression.value.lastOrNull()
-                    ?.isDigit() == true
-            ) {
-                _displayExpression.value =
-                    _displayExpression.value.dropLast(1)
-            }
-
-            /*
-             * If all tax digits were removed,
-             * return to:
-             *
-             * 100 @ TAX+
-             */
-            if (
-                _expression.value.endsWith("TAX+") ||
-                _expression.value.endsWith("TAX-")
-            ) {
-                _displayExpression.value =
-                    _displayExpression.value
-                        .removeSuffix("TAX+")
-
-                _displayExpression.value =
-                    _displayExpression.value
-                        .removeSuffix("TAX-")
-
-                _displayExpression.value =
-                    _displayExpression.value
-                        .removeSuffix(" @ ")
-
-                enteringTaxRate = false
-                _display.value = "0"
-            }
-
+        if (_cursorPosition.value <= 0) {
             return
         }
 
+        val position =
+            _cursorPosition.value.coerceIn(
+                0,
+                _expression.value.length
+            )
+
+        /*
+         * If deleting `%` from TAX rate:
+         *
+         * 100 @ TAX+18%
+         *               ↑
+         *
+         * Don't leave:
+         *
+         * 100 @ TAX+18
+         *
+         * We remove the rate digit as well.
+         */
+        if (
+            enteringTaxRate &&
+            _expression.value
+                .getOrNull(position - 1) == '%'
+        ) {
+
+            val taxStart =
+                findTaxStart(position)
+
+            if (taxStart != -1) {
+
+                val rateStart =
+                    findTaxRateStart(taxStart)
+
+                if (rateStart < position - 1) {
+
+                    _expression.value =
+                        _expression.value
+                            .removeRange(
+                                position - 2,
+                                position
+                            )
+
+                    _cursorPosition.value =
+                        position - 2
+
+                    _display.value =
+                        taxRateText(
+                            rateStart
+                        )
+
+                    return
+                }
+            }
+        }
+
         _expression.value =
-            _expression.value.dropLast(1)
+            _expression.value.removeRange(
+                position - 1,
+                position
+            )
 
-        _displayExpression.value =
-            _displayExpression.value.dropLast(1)
+        _cursorPosition.value =
+            position - 1
 
-        _display.value =
-            currentNumber().ifEmpty { "0" }
+        updateDisplayFromExpression()
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // CALCULATE
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun calculate() {
 
@@ -739,121 +1008,98 @@ class CalculatorEngine {
         }
 
         /*
-         * TAX must contain a rate.
+         * Don't calculate incomplete tax:
+         *
+         * 100 @ TAX+
          */
-        if (enteringTaxRate) {
-
-            if (_display.value == "0") {
-                return
-            }
-
-            enteringTaxRate = false
+        if (
+            enteringTaxRate &&
+            taxRateText(findTaxStart(_cursorPosition.value))
+                .isBlank()
+        ) {
+            return
         }
 
         try {
 
-            val internalExpression =
+            val currentExpression =
                 _expression.value
-
-            val visibleExpression =
-                _displayExpression.value
 
             val result =
                 ExpressionEvaluator.evaluate(
-                    internalExpression
+                    currentExpression
                 )
 
             val formatted =
                 formatNumber(result)
 
             _history.add(
-                "$visibleExpression = $formatted"
+                "$currentExpression = $formatted"
             )
 
-            _display.value = formatted
+            _display.value =
+                formatted
 
-            _expression.value = formatted
-            _displayExpression.value = formatted
+            _expression.value =
+                formatted
+
+            _cursorPosition.value =
+                formatted.length
+
+            enteringTaxRate = false
 
             _justCalculated.value = true
 
         } catch (_: Exception) {
 
-            showError()
+            _display.value = "Error"
+
+            _justCalculated.value = true
         }
     }
 
-    // ---------------------------------------------------------
-    // SYNC NUMBER
-    // ---------------------------------------------------------
+    // =========================================================
+    // INSERT
+    // =========================================================
 
-    private fun syncDisplayToExpression() {
+    private fun insertAtCursor(
+        value: String
+    ) {
 
-        if (_expression.value.isEmpty()) {
-
-            _expression.value =
-                _display.value
-
-            _displayExpression.value =
-                _display.value
-
-            return
-        }
-
-        val last =
-            _expression.value.lastOrNull()
+        val expression =
+            _expression.value
 
         /*
-         * After:
+         * IMPORTANT:
          *
-         * 20 %
+         * The cursor can come from Compose's
+         * TextFieldValue.
          *
-         * typing 150 should append.
+         * Always clamp it before substring().
          */
-        if (
-            last == '%' ||
-            last == '(' ||
-            last?.isOperator() == true
-        ) {
+        val position =
+            _cursorPosition.value.coerceIn(
+                0,
+                expression.length
+            )
 
-            _expression.value +=
-                _display.value
+        _expression.value =
+            expression.substring(
+                0,
+                position
+            ) +
+                    value +
+                    expression.substring(
+                        position
+                    )
 
-            _displayExpression.value +=
-                _display.value
-
-            return
-        }
-
-        val match =
-            Regex("""\d*\.?\d+$""")
-                .find(_expression.value)
-
-        if (match != null) {
-
-            _expression.value =
-                _expression.value
-                    .removeRange(match.range) +
-                        _display.value
-
-            _displayExpression.value =
-                _displayExpression.value
-                    .removeRange(match.range) +
-                        _display.value
-
-        } else {
-
-            _expression.value +=
-                _display.value
-
-            _displayExpression.value +=
-                _display.value
-        }
+        _cursorPosition.value =
+            position + value.length
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // CURRENT NUMBER
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun currentNumber(): String {
 
@@ -861,61 +1107,175 @@ class CalculatorEngine {
             return _display.value
         }
 
-        return Regex("""[-+]?\d*\.?\d+$""")
-            .find(_expression.value)
-            ?.value
-            ?: _display.value
+        return numberAroundCursor()
+            .ifEmpty {
+                _display.value
+            }
     }
 
-    // ---------------------------------------------------------
-    // REPLACE NUMBER
-    // ---------------------------------------------------------
-
-    private fun replaceCurrentNumber(
-        replacement: String
-    ) {
+    private fun numberAroundCursor(): String {
 
         val expression =
             _expression.value
 
-        val match =
-            Regex("""[-+]?\d*\.?\d+$""")
-                .find(expression)
+        if (expression.isEmpty()) {
+            return ""
+        }
 
-        if (match != null) {
+        val cursor =
+            _cursorPosition.value.coerceIn(
+                0,
+                expression.length
+            )
 
-            _expression.value =
-                expression.removeRange(match.range) +
-                        replacement
+        var start = cursor
+        var end = cursor
 
-            _displayExpression.value =
-                _displayExpression.value
-                    .removeRange(match.range) +
-                        replacement
+        while (
+            start > 0 &&
+            (
+                    expression[start - 1].isDigit() ||
+                            expression[start - 1] == '.'
+                    )
+        ) {
+            start--
+        }
 
+        while (
+            end < expression.length &&
+            (
+                    expression[end].isDigit() ||
+                            expression[end] == '.'
+                    )
+        ) {
+            end++
+        }
+
+        return expression.substring(
+            start,
+            end
+        )
+    }
+
+    // =========================================================
+    // DISPLAY
+    // =========================================================
+
+    private fun updateDisplayFromExpression() {
+
+        val number =
+            currentNumber()
+
+        if (number.isNotEmpty()) {
+            _display.value = number
         } else {
-
-            _expression.value += replacement
-            _displayExpression.value += replacement
+            _display.value = "0"
         }
     }
 
-    // ---------------------------------------------------------
-    // PRETTY EXPRESSION
-    // ---------------------------------------------------------
+    // =========================================================
+    // TAX HELPERS
+    // =========================================================
 
-    private fun prettyExpression(
-        value: String
-    ): String {
+    private fun findTaxStart(
+        position: Int
+    ): Int {
 
-        return value
-            .replace("TAX+", " @ TAX+")
-            .replace("TAX-", " @ TAX-")
+        val before =
+            _expression.value.substring(
+                0,
+                position.coerceIn(
+                    0,
+                    _expression.value.length
+                )
+            )
+
+        return maxOf(
+            before.lastIndexOf(" @ TAX+"),
+            before.lastIndexOf(" @ TAX-")
+        )
     }
 
-    // ---------------------------------------------------------
+    private fun findTaxRateStart(
+        taxStart: Int
+    ): Int {
+
+        if (taxStart == -1) {
+            return -1
+        }
+
+        val marker =
+            if (
+                _expression.value
+                    .startsWith(
+                        " @ TAX+",
+                        taxStart
+                    )
+            ) {
+                " @ TAX+"
+            } else {
+                " @ TAX-"
+            }
+
+        return taxStart + marker.length
+    }
+
+    private fun taxRateText(
+        taxStart: Int
+    ): String {
+
+        if (taxStart == -1) {
+            return ""
+        }
+
+        val rateStart =
+            findTaxRateStart(taxStart)
+
+        if (rateStart == -1) {
+            return ""
+        }
+
+        return _expression.value
+            .substring(
+                rateStart
+            )
+            .removeSuffix("%")
+            .filter {
+                it.isDigit() || it == '.'
+            }
+    }
+
+    // =========================================================
+    // CLEAR
+    // =========================================================
+
+    private fun clear() {
+
+        _expression.value = ""
+        _display.value = "0"
+
+        _cursorPosition.value = 0
+
+        _justCalculated.value = false
+
+        enteringTaxRate = false
+
+        _history.clear()
+    }
+
+    private fun clearCurrent() {
+
+        _expression.value = ""
+        _display.value = "0"
+
+        _cursorPosition.value = 0
+
+        enteringTaxRate = false
+    }
+
+    // =========================================================
     // FORMAT
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun formatNumber(
         value: Double
@@ -928,62 +1288,22 @@ class CalculatorEngine {
             return "Error"
         }
 
-        return if (
-            value == value.toLong().toDouble()
+        if (
+            value ==
+            value.toLong().toDouble()
         ) {
-            value.toLong().toString()
-        } else {
-            value.toString()
-                .trimEnd('0')
-                .trimEnd('.')
+            return value.toLong().toString()
         }
+
+        return value
+            .toString()
+            .trimEnd('0')
+            .trimEnd('.')
     }
 
-    // ---------------------------------------------------------
-    // CLEAR
-    // ---------------------------------------------------------
-
-    private fun clear() {
-
-        _display.value = "0"
-        _expression.value = ""
-        _displayExpression.value = ""
-
-        _justCalculated.value = false
-
-        enteringTaxRate = false
-
-        _history.clear()
-    }
-
-    private fun clearCurrent() {
-
-        _display.value = "0"
-        _expression.value = ""
-        _displayExpression.value = ""
-
-        enteringTaxRate = false
-    }
-
-    // ---------------------------------------------------------
-    // ERROR
-    // ---------------------------------------------------------
-
-    private fun showError() {
-
-        _display.value = "Error"
-
-        _expression.value = ""
-        _displayExpression.value = ""
-
-        _justCalculated.value = true
-
-        enteringTaxRate = false
-    }
-
-    // ---------------------------------------------------------
-    // OPERATOR
-    // ---------------------------------------------------------
+    // =========================================================
+    // CHAR HELPERS
+    // =========================================================
 
     private fun Char.isOperator(): Boolean {
 

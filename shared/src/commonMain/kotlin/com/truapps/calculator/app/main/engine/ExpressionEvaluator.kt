@@ -7,14 +7,28 @@ object ExpressionEvaluator {
 
     fun evaluate(expression: String): Double {
 
-        val parser = Parser(expression)
+        val normalized = expression
+            .replace(
+                Regex("""\s*@\s*TAX\+(\d+(?:\.\d+)?)%""")
+            ) {
+                "TAX+${it.groupValues[1]}"
+            }
+            .replace(
+                Regex("""\s*@\s*TAX-(\d+(?:\.\d+)?)%""")
+            ) {
+                "TAX-${it.groupValues[1]}"
+            }
+
+        val parser = Parser(normalized)
 
         val result = parser.parseExpression()
 
         parser.skipSpaces()
 
         if (!parser.isAtEnd()) {
-            error("Unexpected character at ${parser.position}")
+            error(
+                "Unexpected character at ${parser.position}"
+            )
         }
 
         return result
