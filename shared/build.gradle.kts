@@ -19,7 +19,7 @@ kotlin {
     }
 
     android {
-        namespace = "com.truapps.calculator.app.shared"
+        namespace = "com.truapps.digical.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 

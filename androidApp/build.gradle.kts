@@ -20,11 +20,11 @@ dependencies {
 }
 
 android {
-    namespace = "com.truapps.calculator.app"
+    namespace = "com.truapps.digical"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.truapps.calculator.app"
+        applicationId = "com.truapps.digical"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
