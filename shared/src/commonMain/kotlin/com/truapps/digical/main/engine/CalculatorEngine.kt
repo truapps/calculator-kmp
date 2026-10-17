@@ -12,8 +12,9 @@ import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import com.truapps.digical.platform.CalculatorFeedback
 
-class CalculatorEngine {
+class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
     private val _display: MutableState<String> =
         mutableStateOf("0")
@@ -80,6 +81,10 @@ class CalculatorEngine {
 
     fun press(key: CalculatorKey) {
 
+        when(key){
+            is CalculatorKey.Equals, CalculatorKey.Clear -> feedback.mediumFeedback()
+            else -> feedback.lightFeedback()
+        }
         when (key) {
 
             is CalculatorKey.Digit -> {

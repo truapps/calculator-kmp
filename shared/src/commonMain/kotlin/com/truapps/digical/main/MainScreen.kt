@@ -3,7 +3,9 @@ package com.truapps.digical.main
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -13,27 +15,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.innerShadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import calculatorapp.shared.generated.resources.Res
 import calculatorapp.shared.generated.resources.calculator_background
+import calculatorapp.shared.generated.resources.digital_cursor
 import calculatorapp.shared.generated.resources.display_background
 import calculatorapp.shared.generated.resources.header_image
+import calculatorapp.shared.generated.resources.mute_sound
+import calculatorapp.shared.generated.resources.unmute_sound
+import coil3.compose.LocalPlatformContext
 import com.truapps.digical.main.engine.CalculatorEngine
 import com.truapps.digical.main.engine.CalculatorKey
+import com.truapps.digical.platform.CalculatorFeedback
+import com.truapps.digical.platform.rdp
+import com.truapps.digical.platform.rsp
 import com.truapps.digical.ui.components.ClearButton
 import com.truapps.digical.ui.components.CloseBracketButton
 import com.truapps.digical.ui.components.CubeButton
@@ -50,12 +65,14 @@ import com.truapps.digical.ui.theme.DisplayFontRegular
 import com.truapps.digical.ui.theme.displayTextColor
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
-fun MainScreen() {
+fun MainScreen(feedback: CalculatorFeedback) {
+
     val engine = remember {
-        CalculatorEngine()
+        CalculatorEngine(feedback)
     }
 
     var expressionValue by remember {
@@ -96,6 +113,10 @@ fun MainScreen() {
         mutableStateOf(true)
     }
 
+    val cursorPainter = painterResource(
+        Res.drawable.digital_cursor
+    )
+
     LaunchedEffect(engine.cursorPosition) {
 
         cursorVisible = true
@@ -105,6 +126,8 @@ fun MainScreen() {
             cursorVisible = !cursorVisible
         }
     }
+
+
     val calculationHistory = engine.history.joinToString("\n") { it }
     AppTheme {
         Surface(
@@ -121,31 +144,52 @@ fun MainScreen() {
             Scaffold(containerColor = Color.Transparent) {
                 Column(
                     modifier = Modifier.padding(
-                        top = it.calculateTopPadding(),
-                        bottom = it.calculateBottomPadding().plus(12.dp),
-                        start = 8.dp,
-                        end = 8.dp
+                        top = it.calculateTopPadding().value.rdp,
+                        bottom = it.calculateBottomPadding().value.rdp.plus(12.rdp),
+                        start = 8.rdp,
+                        end = 8.rdp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.rdp)
                 ) {
 
-                    Image(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.FillWidth,
-                        painter = painterResource(resource = Res.drawable.header_image), contentDescription = null
-                    )
+                    Box{
+                        Image(
+                            modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                            contentScale = ContentScale.FillWidth,
+                            painter = painterResource(resource = Res.drawable.header_image), contentDescription = null
+                        )
+
+                        Box(modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxWidth(0.2f)) {
+
+                            Icon(painter = painterResource(if(feedback.isMuted.value) Res.drawable.mute_sound else  Res.drawable.unmute_sound), contentDescription = null,
+                                tint = Color.Unspecified,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .size(36.rdp).clickable {
+
+                                        feedback.toggleMute()
+                                        feedback.mediumFeedback()
+
+                                    })
+
+                        }
+
+                    }
+
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(RoundedCornerShape(24.rdp))
                             .innerShadow(
-                                shape = RoundedCornerShape(24.dp),
+                                shape = RoundedCornerShape(24.rdp),
                                 shadow = Shadow(
-                                    radius = 16.dp,
+                                    radius = 16.rdp,
                                     color = Color.Black.copy(alpha = 0.25f),
-                                    spread = 4.dp
+                                    spread = 4.rdp
                                 )
                             )
                     ) {
@@ -157,7 +201,7 @@ fun MainScreen() {
                             contentScale = ContentScale.Crop
                         )
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(16.rdp),
                             verticalArrangement = Arrangement.Bottom
                         ) {
 
@@ -179,8 +223,8 @@ fun MainScreen() {
                                                     alpha = 0.5f
                                                 ),
                                                 fontFamily = DisplayFontRegular,
-                                                fontSize = 24.sp,
-                                                letterSpacing = 1.sp
+                                                fontSize = 24.rsp,
+                                                letterSpacing = 1.rsp
                                             )
                                         ) {
                                             append(calculationHistory)
@@ -234,8 +278,8 @@ fun MainScreen() {
                                         color = displayTextColor,
                                         fontFamily = DisplayFontRegular,
                                         fontWeight = FontWeight.Normal,
-                                        fontSize = 24.sp,
-                                        letterSpacing = 1.sp
+                                        fontSize = 24.rsp,
+                                        letterSpacing = 1.rsp
                                     ),
 
                                     onTextLayout = {
@@ -243,41 +287,35 @@ fun MainScreen() {
                                     }
                                 )
 
+
                                 Canvas(
                                     modifier = Modifier.matchParentSize()
                                 ) {
 
-                                    val layout =
-                                        textLayoutResult
-                                            ?: return@Canvas
+                                    val layout = textLayoutResult ?: return@Canvas
 
-                                    val cursorRect =
-                                        layout.getCursorRect(
-                                            engine.cursorPosition.value
-                                        )
+                                    if(!cursorVisible) return@Canvas
 
-                                    drawLine(
-                                        brush = SolidColor(
-                                            if (cursorVisible) displayTextColor else Color.Transparent,
-                                        ),
+                                    layout.getCursorRect(
+                                        engine.cursorPosition.value
+                                    ).let { rect ->
 
-                                        start = Offset(
-                                            cursorRect.left - 5,
-                                            cursorRect.top - 5
-                                        ),
 
-                                        end = Offset(
-                                            cursorRect.left - 5,
-                                            cursorRect.bottom - 5
-                                        ),
 
-                                        strokeWidth = 2.dp.toPx(),
-                                        cap = StrokeCap.Round,
-                                        pathEffect = PathEffect.dashPathEffect(
-                                            intervals = floatArrayOf(2f, 8f),
-                                            phase = 10f
-                                        )
-                                    )
+                                        with(cursorPainter) {
+                                            translate(
+                                                left = rect.left,
+                                                top = rect.top
+                                            ) {
+                                                draw(
+                                                    size = Size(
+                                                        2.dp.toPx(),
+                                                        rect.height
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -445,7 +483,7 @@ fun Row7(engine: CalculatorEngine){
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
 
-       NumberButton(text = "0", width = 182.dp) {
+       NumberButton(text = "0", width = 182.rdp) {
             engine.press(CalculatorKey.Digit(0))
         }
        NumberButton(text = ".") {
@@ -457,9 +495,4 @@ fun Row7(engine: CalculatorEngine){
         }
     }
 
-}
-@Preview(showBackground = true)
-@Composable
-fun MainScreenPreview() {
-    MainScreen()
 }

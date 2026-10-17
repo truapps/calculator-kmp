@@ -20,7 +20,7 @@ val numberButtonTextColor = Color.Black
 val clearButtonColor = Color(0xFF9A3F3F)
 val clearButtonTextColor = Color.White
 val taxButtonBackgroundColor = Color(0xFF15B2D9)
-val taxButtonColor = Color.Black.copy(alpha = 0.20f)
+val taxButtonColor = Color(0xFF137992)
 val taxButtonTextColor = Color.White
 
 val symbolButtonColor = Color(0xFFA6B0B1)

@@ -10,15 +10,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.truapps.digical.main.MainScreen
+import com.truapps.digical.platform.CalculatorFeedback
 import com.truapps.digical.ui.theme.backgroundColor
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 @Composable
-@Preview
-fun App() {
+fun App(feedback: CalculatorFeedback) {
    SetSystemBars(statusBarColor = backgroundColor, navigationBarColor = backgroundColor, darkIcons = false)
-   MainScreen()
+   MainScreen(feedback)
 
 
 }

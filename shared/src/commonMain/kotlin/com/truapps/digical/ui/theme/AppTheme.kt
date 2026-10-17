@@ -6,6 +6,11 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import com.truapps.digical.platform.ResponsiveProvider
+import com.truapps.digical.platform.rdp
+import com.truapps.digical.platform.responsiveScale
+import com.truapps.digical.platform.screenWidth
 
 
 private val lightColorTheme = lightColorScheme()
@@ -16,9 +21,24 @@ private val darkColorTheme = darkColorScheme()
 fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
 
     val colorScheme = if (darkTheme) lightColorTheme else darkColorTheme
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography(),
-        content = content
-    )
+
+    ){
+        ResponsiveProvider {
+            val testRdp = 24.rdp
+            val testDp = 24.dp
+
+            println("========== RESPONSIVE TEST ==========")
+            println("Scale: $responsiveScale")
+            println("Width: $screenWidth")
+            println("RDP: $testRdp")
+            println("DP: $testDp")
+            println("=====================================")
+            content()
+        }
+    }
+
 }

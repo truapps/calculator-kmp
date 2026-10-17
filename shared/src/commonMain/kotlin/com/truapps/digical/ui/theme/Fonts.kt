@@ -7,6 +7,7 @@ import calculatorapp.shared.generated.resources.Res
 import calculatorapp.shared.generated.resources.bitcount_prop_single_light
 import calculatorapp.shared.generated.resources.bitcount_prop_single_regular
 import calculatorapp.shared.generated.resources.chivomono_bold
+import calculatorapp.shared.generated.resources.digital_font
 import org.jetbrains.compose.resources.Font
 
 
@@ -14,7 +15,7 @@ val DisplayFontLight
    @Composable get() = FontFamily(Font(resource = Res.font.bitcount_prop_single_light, weight = FontWeight.ExtraLight))
 
 val DisplayFontRegular
-    @Composable get() = FontFamily(Font(resource = Res.font.bitcount_prop_single_regular, weight = FontWeight.Normal))
+    @Composable get() = FontFamily(Font(resource = Res.font.digital_font, weight = FontWeight.Normal))
 
 val NumberFontBold
 @Composable get() = FontFamily(Font(resource = Res.font.chivomono_bold, weight = FontWeight.Bold))
