@@ -49,14 +49,6 @@ fun RetroCalculatorButton(
     )
 
 
-    val faceOffset by animateDpAsState(
-        targetValue = if (pressed) depth + 2.rdp else depth,
-        animationSpec = tween(
-            durationMillis = 100
-        ),
-        label = "buttonOffset"
-    )
-
     Box(
         modifier = Modifier
             .width(width)
