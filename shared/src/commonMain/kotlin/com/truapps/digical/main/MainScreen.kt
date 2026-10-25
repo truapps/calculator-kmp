@@ -1,5 +1,8 @@
 package com.truapps.digical.main
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -12,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.innerShadow
 import androidx.compose.ui.geometry.Size
@@ -25,6 +29,7 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import calculatorapp.shared.generated.resources.*
 import com.truapps.digical.main.engine.CalculatorEngine
@@ -35,6 +40,7 @@ import com.truapps.digical.platform.rsp
 import com.truapps.digical.ui.components.*
 import com.truapps.digical.ui.theme.AppTheme
 import com.truapps.digical.ui.theme.DisplayFontRegular
+import com.truapps.digical.ui.theme.clearButtonColor
 import com.truapps.digical.ui.theme.displayTextColor
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
@@ -55,6 +61,9 @@ fun MainScreen(feedback: CalculatorFeedback) {
             )
         )
     }
+
+    val errorMessage by engine.errorMessage
+
     val scrollState = rememberScrollState()
 
     LaunchedEffect(engine.display.value) {
@@ -211,6 +220,7 @@ fun MainScreen(feedback: CalculatorFeedback) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .shakeOnError(errorMessage!=null)
                                     .focusable()
                                     .onKeyEvent { event ->
 
@@ -227,12 +237,9 @@ fun MainScreen(feedback: CalculatorFeedback) {
 
                                         detectTapGestures { offset ->
 
-                                            val layout =
-                                                textLayoutResult
-                                                    ?: return@detectTapGestures
+                                            val layout = textLayoutResult ?: return@detectTapGestures
 
-                                            val position =
-                                                layout.getOffsetForPosition(offset)
+                                            val position = layout.getOffsetForPosition(offset)
 
                                             engine.setCursorPosition(position)
                                         }
@@ -242,12 +249,12 @@ fun MainScreen(feedback: CalculatorFeedback) {
                                 Text(
                                     modifier = Modifier.fillMaxWidth(),
 
-                                    text = engine.expression.value,
+                                    text = errorMessage ?: engine.expression.value,
 
                                     textAlign = TextAlign.End,
 
                                     style = TextStyle(
-                                        color = displayTextColor,
+                                        color = if(errorMessage!=null) clearButtonColor else displayTextColor,
                                         fontFamily = DisplayFontRegular,
                                         fontWeight = FontWeight.Normal,
                                         fontSize = 24.rsp,
@@ -266,7 +273,7 @@ fun MainScreen(feedback: CalculatorFeedback) {
 
                                     val layout = textLayoutResult ?: return@Canvas
 
-                                    if(!cursorVisible) return@Canvas
+                                    if(!cursorVisible || errorMessage!=null) return@Canvas
 
                                     layout.getCursorRect(
                                         engine.cursorPosition.value
@@ -467,4 +474,34 @@ fun Row7(engine: CalculatorEngine){
         }
     }
 
+}
+
+fun Modifier.shakeOnError(
+    error: Boolean,
+    shakeDistance: Dp = 4.dp,
+): Modifier = composed {
+    val offsetX = remember { Animatable(0f) }
+
+    LaunchedEffect(error) {
+        if (error) {
+            offsetX.snapTo(0f)
+
+            repeat(2) {
+                offsetX.animateTo(
+                    targetValue = shakeDistance.value,
+                    animationSpec = tween(40)
+                )
+                offsetX.animateTo(
+                    targetValue = -shakeDistance.value,
+                    animationSpec = tween(40)
+                )
+            }
+
+            offsetX.animateTo(
+                targetValue = 0f,
+                animationSpec = spring()
+            )
+        }
+    }
+    offset(x = offsetX.value.dp)
 }

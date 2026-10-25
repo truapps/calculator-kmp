@@ -21,6 +21,10 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
     val display: State<String> = _display
 
+    // Non-null when the last calculation failed. Clear it when the user edits.
+    private val _errorMessage: MutableState<String?> = mutableStateOf(null)
+    val errorMessage: State<String?> = _errorMessage
+
     /*
      * This is now the SINGLE expression.
      *
@@ -81,10 +85,24 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
     fun press(key: CalculatorKey) {
 
-        when(key){
+        when (key) {
             is CalculatorKey.Equals, CalculatorKey.Clear -> feedback.mediumFeedback()
             else -> feedback.lightFeedback()
         }
+
+        if(_errorMessage.value!=null){
+            backspace()
+
+            ExpressionEvaluator.errorPosition.value?.let { position ->
+                _cursorPosition.value = position.coerceIn(0, _expression.value.length)
+            }
+
+            if (_display.value == "Error") {
+                _display.value = "0"
+            }
+            return
+        }
+
         when (key) {
 
             is CalculatorKey.Digit -> {
@@ -266,6 +284,9 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
      */
     fun setExpression(value: String) {
 
+        _errorMessage.value = null
+        _justCalculated.value = false
+        enteringTaxRate = false
         _expression.value = value
 
         _cursorPosition.value =
@@ -311,9 +332,23 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
             _justCalculated.value = false
         }
 
-        insertAtCursor(
-            digit.toString()
-        )
+        insertAtCursor(digit.toString())
+
+        // When entering a negative square-root operand, keep the closing
+        // parenthesis in place while leaving the cursor inside the group.
+        // Example: 8+√(-9) with the cursor immediately before ')'.
+        val updatedExpression = _expression.value
+        val cursorAfterDigit = _cursorPosition.value
+        val negativeRootStart = updatedExpression.lastIndexOf("√(-", cursorAfterDigit - 1)
+        if (
+            cursorAfterDigit == updatedExpression.length &&
+            negativeRootStart >= 0 &&
+            updatedExpression.indexOf(')', negativeRootStart) < 0
+        ) {
+            _expression.value = "$updatedExpression)"
+            // Keep cursor before the auto-inserted closing parenthesis.
+            _cursorPosition.value = cursorAfterDigit + 1
+        }
 
         updateDisplayFromExpression()
     }
@@ -492,8 +527,8 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
          * rate = 18
          */
         var rate = expression.substring(
-                taxPrefixEnd, _cursorPosition.value
-            ).removeSuffix("%")
+            taxPrefixEnd, _cursorPosition.value
+        ).removeSuffix("%")
 
         /*
          * If cursor is before %, don't include it.
@@ -538,10 +573,10 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
         }
 
         val taxMarkerLength = if (beforeCursor.lastIndexOf(" @ TAX+") > beforeCursor.lastIndexOf(" @ TAX-")) {
-                " @ TAX+".length
-            } else {
-                " @ TAX-".length
-            }
+            " @ TAX+".length
+        } else {
+            " @ TAX-".length
+        }
 
         val rateStart = taxStart + taxMarkerLength
 
@@ -566,68 +601,66 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
     // OPERATORS
     // =========================================================
 
-    private fun inputOperator(
-        operator: String
-    ) {
-
+    private fun inputOperator(operator: String) {
         if (enteringTaxRate) {
-
-            if (_display.value == "0") {
-                return
-            }
-
+            if (_display.value == "0") return
             enteringTaxRate = false
         }
 
         if (_expression.value.isEmpty()) {
-
-            insertAtCursor(
-                _display.value
-            )
+            if (operator != "-") insertAtCursor(_display.value)
         }
 
-        val previous =
-            _expression.value
-                .getOrNull(
-                    _cursorPosition.value - 1
-                )
+        val expression = _expression.value
+        val cursor = _cursorPosition.value.coerceIn(0, expression.length)
+        val previous = expression.getOrNull(cursor - 1)
 
-        /*
-         * Replace an existing operator.
-         */
-        if (
-            previous != null &&
-            previous.isOperator()
-        ) {
-
-            _expression.value =
-                _expression.value
-                    .removeRange(
-                        _cursorPosition.value - 1,
-                        _cursorPosition.value
-                    )
-
-            _cursorPosition.value--
-
-            insertAtCursor(operator)
-
+        // A square-root prefix must receive an operand, not another binary
+        // operator. Only unary minus is accepted, and it starts a grouped
+        // negative operand: √(-9), rather than malformed forms like √+9.
+        if (previous == '√') {
+            if (operator != "-") return
+            insertAtCursor("(-")
+            _cursorPosition.value = _expression.value.length
             _display.value = "0"
-
+            _justCalculated.value = false
             return
         }
 
-        /*
-         * Don't put an operator immediately
-         * after an opening parenthesis.
-         */
-        if (previous == '(') {
+        // A minus after an operator/open parenthesis is unary, e.g. 5×-2.
+        if (operator == "-") {
+            if (previous == null || previous == '(' || previous in "×x*/÷") {
+                insertAtCursor("-")
+                _cursorPosition.value = _expression.value.length
+                _display.value = "0"
+                _justCalculated.value = false
+                return
+            }
+        }
+
+        // Replace a trailing binary operator instead of stacking operators.
+        if (previous != null && previous.isBinaryOperator()) {
+            if (operator == "-" && previous in "×x*/÷") {
+                insertAtCursor("-")
+                _cursorPosition.value = _expression.value.length
+                _display.value = "0"
+                _justCalculated.value = false
+                return
+            }
+            val replacement = expression.substring(0, cursor - 1) + operator + expression.substring(cursor)
+            _expression.value = replacement
+            _cursorPosition.value = replacement.length
+            _display.value = "0"
+            _justCalculated.value = false
             return
         }
 
+        if (previous == '(' && operator != "-") return
+        if (previous == '.' || previous == null && operator != "-") return
         insertAtCursor(operator)
-
+        // Keep the cursor at the end after inserting an operator.
+        _cursorPosition.value = _expression.value.length
         _display.value = "0"
-
         _justCalculated.value = false
     }
 
@@ -817,11 +850,13 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
                             previous == '³'
                     )
         ) {
-
             insertAtCursor("x")
+            // Implicit multiplication should leave editing at the end.
+            _cursorPosition.value = _expression.value.length
         }
 
         insertAtCursor("(")
+        _cursorPosition.value = _expression.value.length
 
         _display.value = "0"
     }
@@ -874,6 +909,11 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
     private fun backspace() {
 
+        if(_errorMessage.value!=null){
+            _errorMessage.value = null
+            updateDisplayFromExpression()
+            return
+        }
         if (_expression.value.isEmpty()) {
             return
         }
@@ -980,10 +1020,7 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
             val currentExpression =
                 _expression.value
 
-            val result =
-                ExpressionEvaluator.evaluate(
-                    currentExpression
-                )
+            val result = ExpressionEvaluator.evaluate(currentExpression)
 
             val formatted =
                 formatNumber(result)
@@ -1005,11 +1042,19 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
             _justCalculated.value = true
 
-        } catch (_: Exception) {
-
+        } catch (e: ExpressionEvaluator.EvaluationException) {
+            _errorMessage.value = e.message ?: "Invalid expression"
             _display.value = "Error"
-
-            _justCalculated.value = true
+            // Keep the expression intact so the user can correct it.
+            _justCalculated.value = false
+        } catch (e: IllegalArgumentException) {
+            _errorMessage.value = e.message ?: "Invalid expression"
+            _display.value = "Error"
+            _justCalculated.value = false
+        } catch (e: Exception) {
+            _errorMessage.value = "Unable to calculate this expression"
+            _display.value = "Error"
+            _justCalculated.value = false
         }
     }
 
@@ -1018,43 +1063,81 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
     // =========================================================
 
     private fun insertAtCursor(value: String) {
+        if (value.isEmpty()) return
+
         val expression = _expression.value
+        val cursor = _cursorPosition.value.coerceIn(0, expression.length)
 
-        val position = _cursorPosition.value.coerceIn(
-            0,
-            expression.length
-        )
-
-        // Do not allow square or cube before a number.
-        if (value == "²" || value == "³") {
-            if (
-                position == 0 ||
-                !expression[position - 1].isDigit() &&
-                expression[position - 1] != ')'
-            ) {
-                return
+        when (value) {
+            "√" -> {
+                // If a value already precedes the cursor, √ starts a new
+                // operand and therefore implies multiplication: 2√4.
+                // At the beginning of an operand, it prefixes that operand: √9.
+                val previous = expression.getOrNull(cursor - 1)
+                val startsNewOperand = previous != null &&
+                        (previous.isDigit() || previous == ')' || previous in "²³%")
+                val start = if (startsNewOperand) cursor else findOperandStart(expression, cursor)
+                if (start > 0 && expression.getOrNull(start - 1) == '√') return
+                _expression.value = expression.substring(0, start) + value + expression.substring(start)
+                _cursorPosition.value = start + value.length
+            }
+            "²", "³", "%" -> {
+                val previous = expression.getOrNull(cursor - 1)
+                if (previous == null || !(previous.isDigit() || previous == ')' || previous in "²³%")) return
+                if (previous == value.first()) return
+                _expression.value = expression.substring(0, cursor) + value + expression.substring(cursor)
+                _cursorPosition.value = cursor + value.length
+            }
+            "." -> {
+                if (!canInsertDecimal(expression, cursor)) return
+                _expression.value = expression.substring(0, cursor) + value + expression.substring(cursor)
+                _cursorPosition.value = cursor + value.length
+            }
+            else -> {
+                _expression.value = expression.substring(0, cursor) + value + expression.substring(cursor)
+                _cursorPosition.value = cursor + value.length
             }
         }
+    }
 
-        val insertPosition = if (
-            value == "√" &&
-            position > 0 &&
-            expression[position - 1].isDigit()
-        ) {
-            var start = position
+    private fun findOperandStart(expression: String, cursor: Int): Int {
+        if (cursor <= 0) return cursor
+        var index = cursor - 1
 
-            while (start > 0 && expression[start - 1].isDigit()) {
-                start--
-            }
+        // Include postfix operators when finding the operand they modify.
+        while (index >= 0 && expression[index] in "²³%") index--
+        if (index < 0) return 0
 
-            start
-        } else {
-            position
+        if (expression[index].isDigit() || expression[index] == '.') {
+            while (index >= 0 && (expression[index].isDigit() || expression[index] == '.')) index--
+            return index + 1
         }
 
-        _expression.value = expression.substring(0, insertPosition) + value + expression.substring(insertPosition)
+        if (expression[index] == ')') {
+            var depth = 1
+            index--
+            while (index >= 0) {
+                when (expression[index]) {
+                    ')' -> depth++
+                    '(' -> {
+                        depth--
+                        if (depth == 0) return index
+                    }
+                }
+                index--
+            }
+            return cursor
+        }
 
-        _cursorPosition.value = position + value.length
+        return cursor
+    }
+
+    private fun canInsertDecimal(expression: String, cursor: Int): Boolean {
+        var start = cursor
+        var end = cursor
+        while (start > 0 && (expression[start - 1].isDigit() || expression[start - 1] == '.')) start--
+        while (end < expression.length && (expression[end].isDigit() || expression[end] == '.')) end++
+        return !expression.substring(start, end).contains('.')
     }
 
     // =========================================================
@@ -1211,6 +1294,7 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
     private fun clear() {
 
+        _errorMessage.value = null
         _expression.value = ""
         _display.value = "0"
 
@@ -1225,6 +1309,7 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
     private fun clearCurrent() {
 
+        _errorMessage.value = null
         _expression.value = ""
         _display.value = "0"
 
@@ -1241,11 +1326,8 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
         value: Double
     ): String {
 
-        if (
-            value.isNaN() ||
-            value.isInfinite()
-        ) {
-            return "Error"
+        if (!value.isFinite()) {
+            throw ExpressionEvaluator.EvaluationException("Result is out of range")
         }
 
         if (
@@ -1265,11 +1347,9 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
     // CHAR HELPERS
     // =========================================================
 
-    private fun Char.isOperator(): Boolean {
+    private fun Char.isBinaryOperator(): Boolean = this in "+-x×*/÷"
 
-        return this == '+' ||
-                this == '-' ||
-                this == 'x' ||
-                this == '÷'
-    }
+    private fun Char.isOperator(): Boolean = this.isBinaryOperator()
+
+
 }
