@@ -29,6 +29,7 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import calculatorapp.shared.generated.resources.*
@@ -40,8 +41,13 @@ import com.truapps.digical.platform.rsp
 import com.truapps.digical.ui.components.*
 import com.truapps.digical.ui.theme.AppTheme
 import com.truapps.digical.ui.theme.DisplayFontRegular
+import com.truapps.digical.ui.theme.NumberFontBold
+import com.truapps.digical.ui.theme.backgroundColor
+import com.truapps.digical.ui.theme.buttonAreaColorV2
 import com.truapps.digical.ui.theme.clearButtonColor
+import com.truapps.digical.ui.theme.displayColorV2
 import com.truapps.digical.ui.theme.displayTextColor
+import com.truapps.digical.ui.theme.surfaceColorV2
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
@@ -90,21 +96,63 @@ fun MainScreen(feedback: CalculatorFeedback) {
     var textLayoutResult by remember {
         mutableStateOf<TextLayoutResult?>(null)
     }
+
+    val textScrollState = rememberScrollState()
+    val expression = errorMessage ?: engine.expression.value
+
+    LaunchedEffect(expression) {
+        textScrollState.animateScrollTo(textScrollState.maxValue)
+    }
+
     var cursorVisible by remember {
         mutableStateOf(true)
     }
-
-    val cursorPainter = painterResource(
-        Res.drawable.digital_cursor
-    )
-
-    LaunchedEffect(engine.cursorPosition) {
+    val cursorPosition by engine.cursorPosition
+    LaunchedEffect(cursorPosition,expression) {
 
         cursorVisible = true
-
+        delay(500.milliseconds)
         while (true) {
             delay(500.milliseconds)
             cursorVisible = !cursorVisible
+        }
+    }
+    val blinkIndex = when {
+        errorMessage != null -> -1
+        expression.isEmpty() -> -1
+        cursorPosition < expression.length -> cursorPosition-1
+        else -> expression.lastIndex
+    }
+
+    val annotatedExpression = buildAnnotatedString {
+        withStyle(
+            SpanStyle(
+                color = if (errorMessage != null) {
+                    clearButtonColor
+                } else {
+                    displayTextColor
+                },
+                fontFamily = if(errorMessage!=null) NumberFontBold else DisplayFontRegular,
+                fontWeight = FontWeight.Normal,
+                fontSize =  if(errorMessage!=null) 14.rsp else 36.rsp,
+                letterSpacing = 1.rsp
+            )
+        ) {
+            append(expression)
+        }
+
+        if (blinkIndex >= 0) {
+            addStyle(
+                style = SpanStyle(
+                    color = if (cursorVisible) {
+                        displayTextColor
+                    } else {
+                        Color.Transparent
+                    }
+                ),
+                start = blinkIndex,
+                end = blinkIndex + 1
+            )
         }
     }
 
@@ -116,19 +164,13 @@ fun MainScreen(feedback: CalculatorFeedback) {
             color = Color.Transparent,
         ) {
 
-            Image(
-                modifier = Modifier.fillMaxSize(),
-                painter = painterResource(resource = Res.drawable.calculator_background),
-                contentDescription = null,
-                contentScale = ContentScale.Crop
-            )
-            Scaffold(containerColor = Color.Transparent) {
+            Scaffold(containerColor = surfaceColorV2) {
                 Column(
                     modifier = Modifier.padding(
                         top = it.calculateTopPadding().value.rdp,
                         bottom = it.calculateBottomPadding().value.rdp.plus(12.rdp),
-                        start = 8.rdp,
-                        end = 8.rdp
+                        start = 16.rdp,
+                        end = 16.rdp
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.rdp)
                 ) {
@@ -162,28 +204,30 @@ fun MainScreen(feedback: CalculatorFeedback) {
 
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .clip(RoundedCornerShape(24.rdp))
-                            .innerShadow(
-                                shape = RoundedCornerShape(24.rdp),
-                                shadow = Shadow(
-                                    radius = 16.rdp,
-                                    color = Color.Black.copy(alpha = 0.25f),
-                                    spread = 4.rdp
+                            .clip(RoundedCornerShape(32.rdp))
+                            .border(
+                                width = 6.dp,
+                                color = buttonAreaColorV2,
+                                shape = RoundedCornerShape(32.rdp)
                                 )
-                            )
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.BottomEnd
                     ) {
 
-                        Image(
-                            modifier = Modifier.fillMaxSize(),
-                            painter = painterResource(resource = Res.drawable.display_background),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop
-                        )
                         Column(
-                            modifier = Modifier.padding(16.rdp),
-                            verticalArrangement = Arrangement.Bottom
+                            modifier = Modifier
+                                .padding(2.rdp)
+                                .clip(RoundedCornerShape(32.rdp))
+                                .background(displayColorV2)
+                                .border(
+                                    width = 6.rdp,
+                                    color = buttonAreaColorV2.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(32.rdp)
+                                )
+                                .padding(16.rdp),
+                            verticalArrangement = Arrangement.Bottom,
+                            horizontalAlignment = Alignment.End
                         ) {
 
                             // HISTORY
@@ -204,7 +248,7 @@ fun MainScreen(feedback: CalculatorFeedback) {
                                                     alpha = 0.5f
                                                 ),
                                                 fontFamily = DisplayFontRegular,
-                                                fontSize = 24.rsp,
+                                                fontSize = 20.rsp,
                                                 letterSpacing = 1.rsp
                                             )
                                         ) {
@@ -219,8 +263,9 @@ fun MainScreen(feedback: CalculatorFeedback) {
                             // CURRENT EXPRESSION
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .width(IntrinsicSize.Max)
                                     .shakeOnError(errorMessage!=null)
+                                    .horizontalScroll(state = textScrollState)
                                     .focusable()
                                     .onKeyEvent { event ->
 
@@ -244,69 +289,39 @@ fun MainScreen(feedback: CalculatorFeedback) {
                                             engine.setCursorPosition(position)
                                         }
                                     }
-                            ) {
+                            ,contentAlignment = Alignment.BottomEnd) {
 
                                 Text(
                                     modifier = Modifier.fillMaxWidth(),
-
-                                    text = errorMessage ?: engine.expression.value,
-
+                                    text = annotatedExpression,
                                     textAlign = TextAlign.End,
+                                    maxLines = 1,
+                                    softWrap = false,
 
-                                    style = TextStyle(
-                                        color = if(errorMessage!=null) clearButtonColor else displayTextColor,
-                                        fontFamily = DisplayFontRegular,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = 24.rsp,
-                                        letterSpacing = 1.rsp
-                                    ),
-
-                                    onTextLayout = {
-                                        textLayoutResult = it
+                                    onTextLayout = {layout->
+                                        textLayoutResult = layout
                                     }
                                 )
-
-
-                                Canvas(
-                                    modifier = Modifier.matchParentSize()
-                                ) {
-
-                                    val layout = textLayoutResult ?: return@Canvas
-
-                                    if(!cursorVisible || errorMessage!=null) return@Canvas
-
-                                    layout.getCursorRect(
-                                        engine.cursorPosition.value
-                                    ).let { rect ->
-
-
-
-                                        with(cursorPainter) {
-                                            translate(
-                                                left = rect.left,
-                                                top = rect.top
-                                            ) {
-                                                draw(
-                                                    size = Size(
-                                                        2.dp.toPx(),
-                                                        rect.height
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
 
-                    Row1(engine)
-                    Row2(engine)
-                    Row3(engine)
-                    Row4(engine)
-                    Row5(engine)
-                    Row6(engine)
-                    Row7(engine)
+                    Column(
+                        modifier = Modifier.clip(
+                            RoundedCornerShape(32.rdp)
+                        ).background(color = buttonAreaColorV2)
+                        .padding(16.rdp),
+                        verticalArrangement = Arrangement.spacedBy(16.rdp),horizontalAlignment = Alignment.CenterHorizontally) {
+
+                        Row1(engine)
+                        Row2(engine)
+                        Row3(engine)
+                        Row4(engine)
+                        Row5(engine)
+                        Row6(engine)
+                        Row7(engine)
+                    }
+
 
 
                 }
@@ -334,6 +349,7 @@ fun Row1(engine: CalculatorEngine) {
         })
        FunctionButton(
             text = "√",
+           isAtCorner = true,
         ) {
             engine.press(CalculatorKey.SqRoot)
         }
@@ -462,7 +478,7 @@ fun Row7(engine: CalculatorEngine){
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
 
-       NumberButton(text = "0", width = 182.rdp) {
+       NumberButton(text = "0",isAtCorner = true) {
             engine.press(CalculatorKey.Digit(0))
         }
        NumberButton(text = ".") {

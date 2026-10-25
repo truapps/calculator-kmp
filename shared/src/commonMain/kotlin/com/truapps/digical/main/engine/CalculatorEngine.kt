@@ -274,6 +274,7 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
             0,
             _expression.value.length
         )
+        println("setCursorPosition: ${_cursorPosition.value}")
     }
 
     /*

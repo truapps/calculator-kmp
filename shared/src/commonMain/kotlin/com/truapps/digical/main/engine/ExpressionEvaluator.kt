@@ -41,7 +41,7 @@ object ExpressionEvaluator {
         parser.skipSpaces()
 
         if (!parser.isAtEnd()) {
-            _errorPosition.value= parser.position+1
+            _errorPosition.value= parser.position + 1
             throw EvaluationException(
                 "Unexpected '${parser.peek()}' at position ${parser.position + 1}"
             )

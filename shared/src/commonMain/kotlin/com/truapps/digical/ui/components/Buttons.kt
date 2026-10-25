@@ -3,6 +3,7 @@ package com.truapps.digical.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,12 +40,18 @@ private fun Center(height: Dp, width: Dp, shape: Shape, color: Color?=null, grad
 }
 
 @Composable
-fun NumberButton(text: String,height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
+fun NumberButton(text: String,isAtCorner: Boolean = false,onClick: () -> Unit) {
 
-    RetroCalculatorButton(height = height, width =width, faceColor = numberButtonColor, onClick = onClick) {
+    RetroCalculatorButtonV2(
+        shape = if(isAtCorner) RoundedCornerShape(
+            topStart = 16.rdp,
+            topEnd = 16.rdp,
+            bottomEnd = 16.rdp,
+            bottomStart = 32.rdp,
+        )  else RoundedCornerShape(16.rdp),
+        faceColor = numberButtonColor, onClick = onClick) {
         ButtonText(
             text = text,
-            maxLines = 1,
             style = buttonTextStyle(
                 color = numberButtonTextColor,
                 fontFamily = NumberFontBold
@@ -54,14 +61,21 @@ fun NumberButton(text: String,height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: 
 }
 
 @Composable
-fun FunctionButton(text: String,height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-    RetroCalculatorButton(height = height, width =width, faceColor = functionButtonColor, onClick = onClick) {
+fun FunctionButton(text: String, isAtCorner: Boolean = false, onClick: () -> Unit) {
+    RetroCalculatorButtonV2(
+        shape = if(isAtCorner) RoundedCornerShape(
+            topStart = 16.rdp,
+            topEnd = 32.rdp,
+            bottomEnd = 16.rdp,
+            bottomStart = 16.rdp,
+        )  else RoundedCornerShape(16.rdp),
+        faceColor = functionButtonColor, onClick = onClick) {
         ButtonText(
             text = text,
-            maxLines = 1,
             style = buttonTextStyle(
                 color = functionButtonTextColor,
-                fontFamily = NumberFontBold
+                fontFamily = NumberFontBold,
+                fontSize = 32.rsp
             )
         )
     }
@@ -69,22 +83,32 @@ fun FunctionButton(text: String,height: Dp = 60.rdp, width: Dp = 84.rdp, onClick
 }
 
 @Composable
-fun SubmitButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-    RetroCalculatorButton(height = height, width =width, faceColor = submitButtonColor, onClick = onClick) {
+fun SubmitButton(onClick: () -> Unit) {
+    RetroCalculatorButtonV2(
+        width = 152.rdp,
+        shape = RoundedCornerShape(
+            topStart = 16.rdp,
+            topEnd = 16.rdp,
+            bottomStart = 16.rdp,
+            bottomEnd = 32.rdp,
+        ),
+        faceColor = submitButtonColor, onClick = onClick) {
         ButtonText(
             text = "=",
-            maxLines = 1,
             style = buttonTextStyle(
                 color = Color.White,
-                fontFamily = NumberFontBold
+                fontFamily = NumberFontBold,
+                fontSize = 32.rsp
             )
         )
     }
 
 }
 @Composable
-fun TaxButton(height: Dp = 60.rdp, width: Dp = 164.rdp, onPlus: () -> Unit,onMinus:()->Unit) {
+fun TaxButton(onPlus: () -> Unit,onMinus:()->Unit) {
 
+    val height = 48.rdp
+    val width = 156.rdp
     Row(modifier = Modifier.clip(RoundedCornerShape(16.rdp))
     .background(color = taxButtonBackgroundColor)
         .padding(horizontal = 6.rdp)
@@ -92,25 +116,21 @@ fun TaxButton(height: Dp = 60.rdp, width: Dp = 164.rdp, onPlus: () -> Unit,onMin
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.rdp)) {
 
-        RetroCalculatorButton(height = height.minus(6.rdp), width = width.div(2), faceColor = taxButtonColor, onClick = onPlus) {
+        RetroCalculatorButtonV2(height = height.minus(6.rdp), width = width.div(2), faceColor = taxButtonColor, onClick = onPlus) {
             ButtonText(
                 text = "TAX+",
-                maxLines = 1,
                 style = buttonTextStyle(
                     color = Color.White,
-                    fontFamily = NumberFontBold,
-                    fontSize = 24.rsp
+                    fontFamily = NumberFontBold
                 )
             )
         }
-        RetroCalculatorButton(height = height.minus(6.rdp), width = width.div(2), faceColor = taxButtonColor, onClick = onMinus) {
+        RetroCalculatorButtonV2(height = height.minus(6.rdp), width = width.div(2), faceColor = taxButtonColor, onClick = onMinus) {
             ButtonText(
                 text = "TAX-",
-                maxLines = 1,
                 style = buttonTextStyle(
                     color = Color.White,
-                    fontFamily = NumberFontBold,
-                    fontSize = 24.rsp
+                    fontFamily = NumberFontBold
                 )
             )
         }
@@ -120,15 +140,22 @@ fun TaxButton(height: Dp = 60.rdp, width: Dp = 164.rdp, onPlus: () -> Unit,onMin
 }
 
 @Composable
-fun DeleteButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
+fun DeleteButton(onClick: () -> Unit) {
 
-    RetroCalculatorButton(height = height, width =width, faceColor = clearButtonColor, onClick = onClick) {
+    RetroCalculatorButtonV2(
+        shape = RoundedCornerShape(
+            topStart = 32.rdp,
+            topEnd = 16.rdp,
+            bottomStart = 16.rdp,
+            bottomEnd = 16.rdp,
+        ),
+        faceColor = clearButtonColor, onClick = onClick) {
         Icon(
             painter = painterResource(resource = Res.drawable.backspace),
             contentDescription = null,
             modifier = Modifier
                 .padding(bottom = 4.rdp, end = 2.rdp)
-                .size(36.rdp),
+                .size(24.rdp),
             tint = Color.White
         )
     }
@@ -136,12 +163,52 @@ fun DeleteButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
 }
 
 @Composable
-fun ClearButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
+fun ClearButton(onClick: () -> Unit) {
 
-    RetroCalculatorButton(height = height, width =width, faceColor = clearButtonColor, onClick = onClick) {
+    RetroCalculatorButtonV2(faceColor = clearButtonColor, onClick = onClick) {
         ButtonText(
             text = "AC",
-            maxLines = 1,
+            style = buttonTextStyle(
+                color = Color.White,
+                fontFamily = NumberFontBold
+            )
+        )
+    }
+
+}
+
+@Composable
+fun SqButton(onClick: () -> Unit) {
+
+    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+        ButtonText(
+            text = "×²",
+            style = buttonTextStyle(
+                color = Color.White,
+                fontFamily = NumberFontBold
+            )
+        )
+    }
+
+}
+
+@Composable
+fun CubeButton(onClick: () -> Unit) {
+    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+        ButtonText(
+            text = "x³",
+            style = buttonTextStyle(
+                color = Color.White,
+                fontFamily = NumberFontBold
+            )
+        )
+    }
+}
+@Composable
+fun OpenBracketButton(onClick: () -> Unit) {
+    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+        ButtonText(
+            text = "(",
             style = buttonTextStyle(
                 color = Color.White,
                 fontFamily = NumberFontBold,
@@ -149,79 +216,28 @@ fun ClearButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
             )
         )
     }
-
-}
-
-@Composable
-fun SqButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-
-    RetroCalculatorButton(height = height, width =width, faceColor = symbolButtonColor, onClick = onClick) {
-        ButtonText(
-            text = "×²",
-            maxLines = 1,
-            style = buttonTextStyle(
-                color = Color.Black,
-                fontFamily = NumberFontBold,
-                fontSize = 24.rsp,
-            )
-        )
-    }
-
-}
-
-@Composable
-fun CubeButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-    RetroCalculatorButton(height = height, width =width, faceColor = symbolButtonColor, onClick = onClick) {
-        ButtonText(
-            text = "x³",
-            maxLines = 1,
-            style = buttonTextStyle(
-                color = Color.Black,
-                fontFamily = NumberFontBold,
-                fontSize = 24.rsp
-            )
-        )
-    }
 }
 @Composable
-fun OpenBracketButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-    RetroCalculatorButton(height = height, width =width, faceColor = symbolButtonColor, onClick = onClick) {
-        ButtonText(
-            text = "(",
-            maxLines = 1,
-            style = buttonTextStyle(
-                color = Color.Black,
-                fontFamily = NumberFontBold,
-                fontSize = 24.rsp
-            )
-        )
-    }
-}
-@Composable
-fun CloseBracketButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-    RetroCalculatorButton(height = height, width =width, faceColor = symbolButtonColor, onClick = onClick) {
+fun CloseBracketButton(onClick: () -> Unit) {
+    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
         ButtonText(
             text = ")",
-            maxLines = 1,
             style = buttonTextStyle(
-                color = Color.Black,
-                fontFamily = NumberFontBold,
-                fontSize = 24.rsp
+                color = Color.White,
+                fontFamily = NumberFontBold
             )
         )
     }
 }
 
 @Composable
-fun PlusMinusButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit) {
-    RetroCalculatorButton(height = height, width =width, faceColor = symbolButtonColor, onClick = onClick) {
+fun PlusMinusButton(onClick: () -> Unit) {
+    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
         ButtonText(
             text = "+/-",
-            maxLines = 1,
             style = buttonTextStyle(
-                color = Color.Black,
-                fontFamily = NumberFontBold,
-                fontSize = 24.rsp
+                color = Color.White,
+                fontFamily = NumberFontBold
             )
         )
     }
@@ -230,7 +246,7 @@ fun PlusMinusButton(height: Dp = 60.rdp, width: Dp = 84.rdp, onClick: () -> Unit
 
 @Composable
 private fun buttonTextStyle(
-    fontSize: TextUnit = 36.rsp,
+    fontSize: TextUnit = 20.rsp,
     color: Color = Color.Black,
     textAlign: TextAlign = TextAlign.Center,
     fontWeight: FontWeight = FontWeight.Bold,
@@ -248,13 +264,12 @@ private fun buttonTextStyle(
 @Composable
 private fun ButtonText(
     text: String,
-    maxLines: Int,
     style: TextStyle) {
     Text(
         modifier = Modifier
             .padding(bottom = 4.rdp, end = 2.rdp),
         text = text,
-        maxLines = maxLines,
+        maxLines = 1,
         style = style
     )
 }
