@@ -23,7 +23,7 @@ val taxButtonBackgroundColor = Color(0xFF15B2D9)
 val taxButtonColor = Color(0xFF137992)
 val taxButtonTextColor = Color.White
 
-val symbolButtonColor = Color(0xFFA6B0B1)
+val symbolButtonColor = Color(0xFF808A8B)
 val symbolButtonTextColor = Color.Black
 val submitButtonGradientColor = Brush.verticalGradient(
     colors = listOf(Color(0xFF458077), Color(0xFF0E1A18)),
@@ -43,9 +43,18 @@ val redButtonColorV2 = Color(0xFFD42228)
 
 val retroButtonBorderBrush = Brush.verticalGradient(
     0.0f to Color.White,
-    0.25f to Color.White.copy(alpha = 0.15f),
-    0.5f to Color.White.copy(alpha = 0.30f),
-    0.75f to Color.Black.copy(alpha = 0.75f),
+    0.25f to Color.White.copy(alpha = 0.75f),
+    0.5f to Color.White.copy(alpha = 0.50f),
+    0.75f to Color.White.copy(alpha = 0.25f),
     1f to Color.Black.copy(alpha = 1f),
 
 )
+
+val displayBorderBrush = Brush.verticalGradient(
+    0.0f to Color.White,
+    0.25f to Color.White.copy(alpha = 0.15f),
+    0.5f to Color.White.copy(alpha = 0.30f),
+    0.75f to Color.White.copy(alpha = 0.75f),
+    1f to Color.White.copy(alpha = 1f),
+
+    )

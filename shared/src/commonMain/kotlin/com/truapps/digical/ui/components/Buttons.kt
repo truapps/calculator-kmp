@@ -180,7 +180,7 @@ fun ClearButton(onClick: () -> Unit) {
 @Composable
 fun SqButton(onClick: () -> Unit) {
 
-    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+    RetroCalculatorButtonV2(faceColor = symbolButtonColor, onClick = onClick) {
         ButtonText(
             text = "×²",
             style = buttonTextStyle(
@@ -194,7 +194,7 @@ fun SqButton(onClick: () -> Unit) {
 
 @Composable
 fun CubeButton(onClick: () -> Unit) {
-    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+    RetroCalculatorButtonV2(faceColor = symbolButtonColor, onClick = onClick) {
         ButtonText(
             text = "x³",
             style = buttonTextStyle(
@@ -206,7 +206,7 @@ fun CubeButton(onClick: () -> Unit) {
 }
 @Composable
 fun OpenBracketButton(onClick: () -> Unit) {
-    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+    RetroCalculatorButtonV2(faceColor = symbolButtonColor, onClick = onClick) {
         ButtonText(
             text = "(",
             style = buttonTextStyle(
@@ -219,7 +219,7 @@ fun OpenBracketButton(onClick: () -> Unit) {
 }
 @Composable
 fun CloseBracketButton(onClick: () -> Unit) {
-    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+    RetroCalculatorButtonV2(faceColor = symbolButtonColor, onClick = onClick) {
         ButtonText(
             text = ")",
             style = buttonTextStyle(
@@ -232,7 +232,7 @@ fun CloseBracketButton(onClick: () -> Unit) {
 
 @Composable
 fun PlusMinusButton(onClick: () -> Unit) {
-    RetroCalculatorButtonV2(faceColor = buttonColorV2, onClick = onClick) {
+    RetroCalculatorButtonV2(faceColor = symbolButtonColor, onClick = onClick) {
         ButtonText(
             text = "+/-",
             style = buttonTextStyle(

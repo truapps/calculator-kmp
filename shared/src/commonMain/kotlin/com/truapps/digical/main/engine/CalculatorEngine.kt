@@ -13,6 +13,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import com.truapps.digical.platform.CalculatorFeedback
+import kotlin.math.round
 
 class CalculatorEngine(private val feedback: CalculatorFeedback) {
 
@@ -1331,15 +1332,13 @@ class CalculatorEngine(private val feedback: CalculatorFeedback) {
             throw ExpressionEvaluator.EvaluationException("Result is out of range")
         }
 
-        if (
-            value ==
-            value.toLong().toDouble()
-        ) {
-            return value.toLong().toString()
+        val rounded = round(value * 1000.0) / 1000.0
+
+        if (rounded == rounded.toLong().toDouble()) {
+            return rounded.toLong().toString()
         }
 
-        return value
-            .toString()
+        return rounded.toString()
             .trimEnd('0')
             .trimEnd('.')
     }

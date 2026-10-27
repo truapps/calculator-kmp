@@ -17,10 +17,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.innerShadow
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,8 +51,10 @@ import com.truapps.digical.ui.theme.NumberFontBold
 import com.truapps.digical.ui.theme.backgroundColor
 import com.truapps.digical.ui.theme.buttonAreaColorV2
 import com.truapps.digical.ui.theme.clearButtonColor
+import com.truapps.digical.ui.theme.displayBorderBrush
 import com.truapps.digical.ui.theme.displayColorV2
 import com.truapps.digical.ui.theme.displayTextColor
+import com.truapps.digical.ui.theme.retroButtonBorderBrush
 import com.truapps.digical.ui.theme.surfaceColorV2
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
@@ -157,7 +165,7 @@ fun MainScreen(feedback: CalculatorFeedback) {
     }
 
 
-    val calculationHistory = engine.history.joinToString("\n") { it }
+    val calculationHistory = engine.history.joinToString(separator = "\n", prefix = "\n") { it }
     AppTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -206,10 +214,21 @@ fun MainScreen(feedback: CalculatorFeedback) {
                         modifier = Modifier
                             .clip(RoundedCornerShape(32.rdp))
                             .border(
-                                width = 6.dp,
-                                color = buttonAreaColorV2,
+                                width = 4.rdp,
+                                color = Color.White.copy(alpha = 0.75f),
                                 shape = RoundedCornerShape(32.rdp)
-                                )
+                            )
+                            .border(
+                                width = 6.dp,
+                                color = Color.Black.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(32.rdp)
+                            )
+                            .padding(2.rdp)
+                            .border(
+                                width = 4.dp,
+                                color = Color.Black.copy(alpha = 0.75f),
+                                shape = RoundedCornerShape(32.rdp)
+                            )
                             .fillMaxWidth()
                             .weight(1f),
                         contentAlignment = Alignment.BottomEnd
@@ -220,12 +239,7 @@ fun MainScreen(feedback: CalculatorFeedback) {
                                 .padding(2.rdp)
                                 .clip(RoundedCornerShape(32.rdp))
                                 .background(displayColorV2)
-                                .border(
-                                    width = 6.rdp,
-                                    color = buttonAreaColorV2.copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(32.rdp)
-                                )
-                                .padding(16.rdp),
+                                .padding(start = 16.rdp,end = 16.rdp, bottom = 8.rdp, top = 8.rdp),
                             verticalArrangement = Arrangement.Bottom,
                             horizontalAlignment = Alignment.End
                         ) {
@@ -233,6 +247,35 @@ fun MainScreen(feedback: CalculatorFeedback) {
                             // HISTORY
                             Box(
                                 modifier = Modifier.fillMaxWidth()
+                                    .graphicsLayer{
+                                        compositingStrategy = CompositingStrategy.Offscreen
+                                    }
+                                    .drawWithContent{
+                                        drawContent()
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colorStops = arrayOf(
+                                                    0f to Color.Transparent,
+                                                    1f to Color.White,
+                                                ),
+                                                startY = 0f,
+                                                endY = size.height * 0.15f,
+                                            ),
+                                            blendMode = BlendMode.DstIn,
+                                        )
+
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colorStops = arrayOf(
+                                                    0f to Color.White,
+                                                    1f to Color.Transparent,
+                                                ),
+                                                startY = size.height * 0.95f,
+                                                endY = size.height,
+                                            ),
+                                            blendMode = BlendMode.DstIn,
+                                        )
+                                    }
                                     .weight(1f), contentAlignment = Alignment.BottomEnd
                             ) {
                                 Text(

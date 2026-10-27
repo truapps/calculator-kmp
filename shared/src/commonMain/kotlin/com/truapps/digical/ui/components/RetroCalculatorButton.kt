@@ -107,9 +107,9 @@ fun RetroCalculatorButtonV2(
         modifier = Modifier
             .width(width)
             .height(height)
-            .clip(shape)
             .border(width = 2.rdp, color = Color.Black, shape = shape)
             .padding(1.rdp)
+            .clip(shape)
             .background(color = Color.Black)
             .clickable(
                 interactionSource = interactionSource,
@@ -126,22 +126,27 @@ fun RetroCalculatorButtonV2(
                     transformOrigin = TransformOrigin.Center
                 }
                 .fillMaxSize()
-                .clip(shape)
                 .border(
-                    width = 4.rdp,
-                    color = Color.Black.copy(alpha = 0.25f),
-                    shape = shape
-                )
-                .border(
-                    width = 4.rdp,
+                    width = 2.rdp,
                     color = Color.White.copy(alpha = 0.25f),
                     shape = shape
                 )
                 .border(
                     width = 2.rdp,
+                    color = Color.Black.copy(alpha = 0.25f),
+                    shape = shape
+                )
+                .border(
+                    width = 2.rdp,
+                    color = Color.White.copy(alpha = 0.25f),
+                    shape = shape
+                )
+                .border(
+                    width = 4.rdp,
                     brush = retroButtonBorderBrush,
                     shape = shape
                 )
+                .clip(shape)
                 .background(color = faceColor),
             contentAlignment = Alignment.Center
         ) {
